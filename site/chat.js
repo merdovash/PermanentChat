@@ -56,7 +56,7 @@ function logIn()
         container.new(text);
         alreadySignIn=true;
         updateFrame();
-        if (socket) socket.send(JSON.stringify({type:"new",name:text.author}));
+        if (socket && socket.state!="CLOSED") socket.send(JSON.stringify({type:"new",name:text.author}));
         document.getElementById("username").disabled = alreadySignIn;
         document.getElementById("loginButton").disabled=alreadySignIn;
         alert("new user "+username);
@@ -287,12 +287,12 @@ var Container = (function (){
     function Container (){
         this.map = {};
         this.start=0;
-        this.end=1;
+        this.end=0;
     }
 
     Container.prototype.update = function()
     {
-        for (var i=this.start;i<this.end && i<this.map.length;i++)
+        for (var i=this.start;i<this.end ;i++)
         {
             this.map[i].draw(i-this.start);
         }
@@ -300,13 +300,14 @@ var Container = (function (){
 
     Container.prototype.new = function(author)
     {
+       
         this.map[this.end]=author;
-        this.end++;
+         this.end+=1;
     };
 
     Container.prototype.add = function (name, value)
     {
-        this.map.find(x=>x.author==name).append(value);
+        this.map.forEach(x=>{if (x.author==name) x.append(value)});
     };
 
     Container.prototype.remove = function (name)
