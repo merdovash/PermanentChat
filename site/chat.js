@@ -47,7 +47,7 @@ function logIn()
     if (!alreadySignIn)
     {
         var username = document.getElementById("username").value;
-        if (username.length<1 && !username[0]===' ')
+        if (username.length<1 && !username[0]==' ')
         {
             alert("username should have at least 1 symbol");
             return;
@@ -59,6 +59,7 @@ function logIn()
         if (socket) socket.send(JSON.stringify({type:"new",name:text.author}));
         document.getElementById("username").disabled = alreadySignIn;
         document.getElementById("loginButton").disabled=alreadySignIn;
+        alert("new user "+username);
     }
 }
 
@@ -74,42 +75,57 @@ var panel2;
 
 function initControlPanel2()
 {
-    //create buttons
-    languageButton = new Button({
-        x:10,
-        y:10,
-        width:50,
-        heigth:50,
-        name:"language",
-        action: function()
-            {
-                if (language.buttonName=="en") 
-                {
-                    language.buttonName="rus";
-                }else if (language.buttonName=="rus")
-                {
-                    language.buttonName="en";
-                } 
-            },
-        text : language
-    });
-
-    var netIndicator = new Indicator(
-        {
-            x:200,
-            y:25,
-            radius:15,
-            text:"server",
-            color:{
-                true:"green",
-                false:"red"
-            },
-            condition:socket
-        }
-    );
-
+    alert (chatCanvas.width+ " "+chatCanvas.height);
     //fill panel
-    panel2 = new ControlPanel([languageButton,netIndicator]);
+    panel2 = new ControlPanel([
+        new Button({
+            x:10,
+            y:10,
+            width:50,
+            heigth:50,
+            name:"language",
+            action: function()
+                {
+                    if (language.buttonName=="en") 
+                    {
+                        language.buttonName="rus";
+                    }else if (language.buttonName=="rus")
+                    {
+                        language.buttonName="en";
+                    } 
+                },
+            text : language
+        }),
+        new Button({
+            x:chatCanvas.width-36,
+            y:50,
+            width:30,
+            heigth:30,
+            name: "downBtn",
+            action : function()
+            {
+                container.moveUp();
+            },
+            text : 
+            {
+                buttonName:"∧"
+            }
+        }),
+        new Button({
+            x:chatCanvas.width-36,
+            y:chatCanvas.height-50,
+            width:30,
+            heigth:30,
+            name: "upBtn",
+            action : function()
+            {
+                container.moveDown();
+            },
+            text :{
+                buttonName:"∨"
+            }
+        })
+    ]);
 
     //add listener
     chatCanvas.addEventListener("mousedown",function (e)
@@ -269,36 +285,55 @@ function readMsg(type)
 
 var Container = (function (){
     function Container (){
-        this.map = new Map();
+        this.map = [];
+        this.start=0;
+        this.end=0;
     }
 
     Container.prototype.update = function()
     {
-        i=0;
-        this.map.forEach(function (x){
-            x.draw(i++);
-        });
+        for (var i=this.start;i<this.end && i<this.map.length;i++)
+        {
+            this.map[i].draw(i-this.start);
+        }
     };
 
     Container.prototype.new = function(author)
     {
-        this.map.set(author.author, author);
+        this.map.push(author);
+        this.end++;
     };
 
     Container.prototype.add = function (name, value)
     {
-        
-        this.map[name].append(value);
+        this.map.find(x=>x.author==name).append(value);
     };
 
     Container.prototype.remove = function (name)
     {
-        this.map[name].remove();
+        this.map.find(x=>x.author==name).remove();
     };
 
     Container.prototype.delete = function (name)
     {
-        this.map.delete(name);
+        this.map.splice(this.map.lastIndexOf(x=>x.author==name));
+    };
+
+    Container.prototype.moveDown = function()
+    {
+        if (this.map.length-this.end>0)
+        {
+            this.start++;
+            this.end++;
+        }
+    };
+    Container.prototype.moveUp = function()
+    {
+        if (this.start>0)
+        {
+            this.start--;
+            this.end--;
+        }
     };
 
     return Container;
