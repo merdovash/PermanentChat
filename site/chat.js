@@ -15,7 +15,7 @@ var initChat = function(){
     container.update();
 
     initControlPanel2();
-    //initWebSocket();
+    initWebSocket();
     
 
     window.addEventListener(
@@ -167,7 +167,7 @@ function initWebSocket()
     socket.onmessage = function(event) 
     {
         msg = JSON.parse(event.data);
-        recieveMessage[msg.type](msg.name,msg.value);
+        readMsg(msg.type)(msg.name,msg.value);
     };
 
     socket.onerror = function(error) 
@@ -285,9 +285,9 @@ function readMsg(type)
 
 var Container = (function (){
     function Container (){
-        this.map = [];
+        this.map = {};
         this.start=0;
-        this.end=0;
+        this.end=1;
     }
 
     Container.prototype.update = function()
@@ -300,7 +300,7 @@ var Container = (function (){
 
     Container.prototype.new = function(author)
     {
-        this.map.push(author);
+        this.map[this.end]=author;
         this.end++;
     };
 
@@ -316,7 +316,7 @@ var Container = (function (){
 
     Container.prototype.delete = function (name)
     {
-        this.map.splice(this.map.lastIndexOf(x=>x.author==name));
+        this.map.delete(this.map.find(x=>x.author==name));
     };
 
     Container.prototype.moveDown = function()
