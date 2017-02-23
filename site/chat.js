@@ -167,7 +167,7 @@ function initWebSocket()
     socket.onmessage = function(event) 
     {
         msg = JSON.parse(event.data);
-        readMsg(msg.type)(msg.name,msg.value);
+        readMsg(msg.type, msg);
     };
 
     socket.onerror = function(error) 
@@ -273,21 +273,21 @@ var key =
     }
 };
 
-function readMsg(type)  
+function readMsg(type,params)  
 {
     switch (type)
     {
-        case "new" : return container.new;
-        case "add" : return container.add;
-        case "rmv" : return container.remove;
+        case "new" :  container.new(params.name);
+        case "add" :  container.add(params.name, params.value);
+        case "rmv" :  container.remove(params.name);
     }
 };
 
 var Container = (function (){
     function Container (){
-        this.map = {};
-        this.start=0;
-        this.end=0;
+        this.map = {0:null};
+        this.start=1;
+        this.end=1;
     }
 
     Container.prototype.update = function()
@@ -302,7 +302,7 @@ var Container = (function (){
     {
        
         this.map[this.end]=author;
-         this.end+=1;
+        this.end+=1;
     };
 
     Container.prototype.add = function (name, value)
