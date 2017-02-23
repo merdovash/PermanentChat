@@ -1,0 +1,24 @@
+<!Doctype HTML>
+<head>
+    <script src='main.js'></script>
+    <script src='chat.js'></script>
+    <script src='index.js'></script>
+    <style>
+    .chatCanvas{
+        position: absolute;
+        left:600;
+    }
+    </style>
+</head>
+<body>
+    <div>
+        <canvas height="400" width="500" id='myCanvas'>
+    </div>
+    <div>
+        <canvas height="400" width="500" id='chatCanvas'>
+        <form method=POST action="update();">
+            <input type="text" id = "messageBox" style="width:500px;height:50px">
+        </form>
+    </div>
+</body>
+</html>
