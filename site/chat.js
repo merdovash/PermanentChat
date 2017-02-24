@@ -7,6 +7,7 @@ var language={buttonName: "en"};
 var languageButton;
 var container;
 var dialog;
+var fullClear=false;
 
 var initChat = function(){
     chatCanvas = document.getElementById('chatCanvas');
@@ -29,8 +30,9 @@ var initChat = function(){
                     fullClear=true;    
                 }
             }
-        }
-    )
+        },
+        false
+    );
 
     window.addEventListener(
         "keyup",
@@ -62,7 +64,7 @@ var initChat = function(){
                             name:username,
                             value:fullClear?"full":""
                         }
-                        socket.send(JSON.stringify({type:"rmv", name:username}));
+                        socket.send(JSON.stringify(msg));
                     } 
                 }
                 if (e.keyCode==17)
@@ -251,7 +253,7 @@ function initWebSocket()
         var temp = {
             type : msg.type,
             name: msg.name,
-            value :msg.value?msg.value:""
+            value :msg.value
         }
         readMsg(temp);
     };
@@ -405,7 +407,7 @@ var Container = (function (){
 
     Container.prototype.new = function(text)
     {
-        this.end=this.list.push(text);
+        if (!this.list.find(x=>x.author==text.author)) this.end=this.list.push(text);
     };
 
     Container.prototype.add = function (name, value)
@@ -423,6 +425,7 @@ var Container = (function (){
 
     Container.prototype.remove = function (name, value)
     {
+        alert(fullClear+" "+value);
         this.list.find(x=>x.author==name).remove(value);
     };
 
