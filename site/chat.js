@@ -31,7 +31,7 @@ var initChat = function(){
                 }
             }
         },
-        false
+        true
     );
 
     window.addEventListener(
@@ -48,7 +48,12 @@ var initChat = function(){
                         {
                             type:"add",
                             name:username,
-                            value:getSymbol(e.keyCode)};
+                            value:
+                            {
+                                language:language.buttonName,
+                                code:e.keyCode
+                            }
+                        };
                         message = JSON.stringify(message);
                         socket.send(message);
                     } 
@@ -59,10 +64,14 @@ var initChat = function(){
                     updateFrame();
                     if (socket)
                     {
-                        var msg={
+                        var msg=
+                        {
                             type:"rmv",
                             name:username,
-                            value:fullClear?"full":""
+                            value:
+                            {
+                                full:fullClear
+                            }
                         }
                         socket.send(JSON.stringify(msg));
                     } 
@@ -171,7 +180,7 @@ function initControlPanel2()
         }
         else
         {
-            let createDialog = container.contains(e);
+            var createDialog = container.contains(e);
             if (createDialog)
             {
                 dialog = new MyDialog({
@@ -231,7 +240,7 @@ function initWebSocket()
     socket = new WebSocket("ws://pechbich.fvds.ru:3000/chat");
     socket.onopen = function() 
     {
-        alert('Connection OK.');
+
     };
 
     socket.onclose = function(event) 
@@ -250,12 +259,8 @@ function initWebSocket()
     socket.onmessage = function(event) 
     {
         msg = JSON.parse(event.data);
-        var temp = {
-            type : msg.type,
-            name: msg.name,
-            value :msg.value
-        }
-        readMsg(temp);
+        
+        readMsg(msg);
     };
 
     socket.onerror = function(error) 
@@ -264,12 +269,13 @@ function initWebSocket()
     };
 }
 
-function getSymbol(code)
+function getSymbol(value)
 {
-    let temp = key[language.buttonName][code];
+    var temp;
+    if (key[value.language]) temp = key[value.language][value.code];
     if (!temp)
     {
-        temp = key.symbol[code]
+        temp = key.symbol[value.code]
     }
     return temp;
 }
@@ -375,12 +381,12 @@ function readMsg(msg)
         }
         case "add" :  
         {
-            container.add(msg.name, msg.value);
+            container.add(msg);
             break;
         }
         case "rmv" :  
         {
-            container.remove(msg.name, msg.value);
+            container.remove(msg);
             break;
         }
     }
@@ -410,22 +416,19 @@ var Container = (function (){
         if (!this.list.find(x=>x.author==text.author)) this.end=this.list.push(text);
     };
 
-    Container.prototype.add = function (name, value)
+    Container.prototype.add = function (msg)
     {
-        if(!this.list.find(x=>x.author==name)) 
+        if(!this.list.find(x=>x.author==msg.name)) 
         {
-            this.new(new TextStream(name, "", ctx));
+            this.new(new TextStream(msg.name, "", ctx));
         }
 
-        if (value.length==1)
-        {
-            this.list.find(x=>x.author==name).append(value);
-        }
+        var char = getSymbol(msg.value);
+        this.list.find(x=>x.author==msg.name).append(char);
     };
 
     Container.prototype.remove = function (name, value)
     {
-        alert(fullClear+" "+value);
         this.list.find(x=>x.author==name).remove(value);
     };
 
@@ -454,7 +457,7 @@ var Container = (function (){
     {
         for (var i=0;i<this.list.length ;i++)
         {
-            let params={   
+            var params={   
                 x:10,
                 y:75+i*25,
                 width:(this.list[i].author.length+2)*12,
@@ -484,7 +487,7 @@ var TextStream = (function(){
     };
     TextStream.prototype.remove = function(type)
     {
-        if (type=="full")
+        if (type.full)
         {
             this.text="";
         }
