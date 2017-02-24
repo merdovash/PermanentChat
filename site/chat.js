@@ -410,7 +410,10 @@ var Container = (function (){
 
     Container.prototype.add = function (name, value)
     {
-        if(!this.list.some(x=>x.author==name)) this.new(name);
+        if(!this.list.find(x=>x.author==name)) 
+        {
+            this.new(new TextStream(name, "", ctx));
+        }
 
         if (value.length==1)
         {
