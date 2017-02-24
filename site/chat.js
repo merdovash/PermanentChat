@@ -6,6 +6,7 @@ var stream;
 var language={buttonName: "en"};
 var languageButton;
 var container;
+var dialog;
 
 var initChat = function(){
     chatCanvas = document.getElementById('chatCanvas');
@@ -17,6 +18,19 @@ var initChat = function(){
     initControlPanel2();
     initWebSocket();
     
+    window.addEventListener(
+        "keydown",
+        function (e)
+        {
+            if (alreadySignIn)
+            {
+                if (e.keyCode==17)
+                {
+                    fullClear=true;    
+                }
+            }
+        }
+    )
 
     window.addEventListener(
         "keyup",
@@ -25,21 +39,35 @@ var initChat = function(){
             if (alreadySignIn)
             {
                 if (e.keyCode>47 && e.keyCode<223 || e.keyCode==32)
-                {
-                    container.add(username,getSymbol(e.keyCode));
-                    updateFrame();
+                {                    
                     if (socket)
                     {
-                        var message = {type:"add", name:document.getElementById("username").value, value:getSymbol(e.keyCode)};
+                        var message = 
+                        {
+                            type:"add",
+                            name:username,
+                            value:getSymbol(e.keyCode)};
                         message = JSON.stringify(message);
                         socket.send(message);
                     } 
+                    updateFrame();
                     
                 }else if (e.keyCode==8)
                 {
-                    text.remove();
                     updateFrame();
-                    if (socket) socket.send(JSON.stringify({type:"rmv", name:document.getElementById("username").value}));
+                    if (socket)
+                    {
+                        var msg={
+                            type:"rmv",
+                            name:username,
+                            value:fullClear?"full":""
+                        }
+                        socket.send(JSON.stringify({type:"rmv", name:username}));
+                    } 
+                }
+                if (e.keyCode==17)
+                {
+                    fullClear=false;
                 }
             }
         },
@@ -58,14 +86,13 @@ function logIn()
             alert("username should have at least 1 symbol");
             return;
         }
-        text = new TextStream(username,"",ctx);
-        container.new(text);
+        //text = new TextStream(username,"",ctx);
+        //container.new(text);
         alreadySignIn=true;
         updateFrame();
-        if (socket && socket.state!="CLOSED") socket.send(JSON.stringify({type:"new",name:text.author}));
+        if (socket && socket.state!="CLOSED") socket.send(JSON.stringify({type:"new",name:username}));
         document.getElementById("username").disabled = alreadySignIn;
         document.getElementById("loginButton").disabled=alreadySignIn;
-        alert("new user "+username);
     }
 }
 
@@ -75,6 +102,7 @@ function updateFrame()
     ctx.fillRect(0, 0, chatCanvas.width, chatCanvas.height)
     panel2.draw(ctx);
     container.update()
+    if (dialog && dialog.status) dialog.draw();
 }
 
 var panel2;
@@ -87,7 +115,7 @@ function initControlPanel2()
             x:10,
             y:10,
             width:50,
-            heigth:50,
+            height:50,
             name:"language",
             action: function()
                 {
@@ -105,7 +133,7 @@ function initControlPanel2()
             x:chatCanvas.width-36,
             y:50,
             width:30,
-            heigth:30,
+            height:30,
             name: "downBtn",
             action : function()
             {
@@ -120,7 +148,7 @@ function initControlPanel2()
             x:chatCanvas.width-36,
             y:chatCanvas.height-50,
             width:30,
-            heigth:30,
+            height:30,
             name: "upBtn",
             action : function()
             {
@@ -135,7 +163,55 @@ function initControlPanel2()
     //add listener
     chatCanvas.addEventListener("mousedown",function (e)
     {
-        if (panel2.checkIntersect(e, true).mousepress) updateFrame();
+        if (panel2.checkIntersect(e, true).mousepress) 
+        {
+            updateFrame();
+        }
+        else
+        {
+            let createDialog = container.contains(e);
+            if (createDialog)
+            {
+                dialog = new MyDialog({
+                    x:createDialog.x,
+                    y:createDialog.y,
+                    width:200,
+                    height:30,
+                    texts:[
+                        {
+                            name:"null",
+                            text:{
+                                buttonName:"nothing"
+                            },
+                            action: function()
+                            {
+                                container.add(username, "&")
+                            }
+                        },
+                        {
+                            name:"null2",
+                            text:{
+                                buttonName:"hello"
+                            },
+                            action: function()
+                            {
+                                container.add(username, "$")
+                            }
+                        }],
+                    ctx: ctx
+                })
+                panel2.add(dialog.buttons);
+                updateFrame();
+            }
+            else{
+                if (dialog && dialog.status && !dialog.contains(e))
+                {
+                    dialog.status=false;
+                    panel2.remove(dialog.buttons);
+                    updateFrame();
+                } 
+            }            
+        }
     });
     chatCanvas.addEventListener("mousemove",function (e)
     {
@@ -150,45 +226,57 @@ function initControlPanel2()
 var socket;
 function initWebSocket()
 {
-    socket = new WebSocket("ws://pechbich.fvds.ru/chat");
+    socket = new WebSocket("ws://pechbich.fvds.ru:3000/chat");
     socket.onopen = function() 
     {
-        alert('Соединение установлено.');
+        alert('Connection OK.');
     };
 
     socket.onclose = function(event) 
     {
     if (event.wasClean) 
     {
-        alert('Соединение закрыто чисто');
+        alert('Connection closed');
     } 
     else 
     {
-        alert('Обрыв соединения'); // например, "убит" процесс сервера
+        alert('Connection break'); // например, "убит" процесс сервера
     }
-        alert('Код: ' + event.code + ' причина: ' + event.reason);
+        alert('Code: ' + event.code + 'reason: ' + event.reason);
     };
 
     socket.onmessage = function(event) 
     {
         msg = JSON.parse(event.data);
-        alert(event.data);
-        readMsg(msg.type, msg);
+        var temp = {
+            type : msg.type,
+            name: msg.name,
+            value :msg.value?msg.value:""
+        }
+        readMsg(temp);
     };
 
     socket.onerror = function(error) 
     {
-        alert("Ошибка " + error.message);
+        alert("Error " + error.message);
     };
 }
 
 function getSymbol(code)
 {
-    return key[language.buttonName][code];
+    let temp = key[language.buttonName][code];
+    if (!temp)
+    {
+        temp = key.symbol[code]
+    }
+    return temp;
 }
 var key =
 {
-    en: {   32  :   " " ,
+    symbol:
+    {
+            192 : "`",
+            32  :   " " ,
             48	:	"0"	,
             49	:	"1"	,
             50	:	"2"	,
@@ -199,6 +287,18 @@ var key =
             55	:	"7"	,
             56	:	"8"	,
             57	:	"9"	,
+            191 :   "/",
+            186 :   ";" ,
+            188 :   "," ,
+            190 :   "." ,
+            222 :   "'" ,
+            219 :   "\[" ,
+            221 :   "\]",
+            189 :   "-",
+            107 :   "+",
+            187 :   "="
+    },
+    en: {   
             65	:	"A"	,
             66	:	"B"	,
             67	:	"C"	,
@@ -225,25 +325,8 @@ var key =
             88	:	"X"	,
             89	:	"Y"	,
             90	:	"Z"	,
-            186 :   ";" ,
-            188 :   "," ,
-            190 :   "." ,
-            222 :   "'" ,
-            219 :   "\[" ,
-            221 :   "\]"
     },
     rus :{  
-            32  :   " " ,
-            48	:	"0"	,
-            49	:	"1"	,
-            50	:	"2"	,
-            51	:	"3"	,
-            52	:	"4"	,
-            53	:	"5"	,
-            54	:	"6"	,
-            55	:	"7"	,
-            56	:	"8"	,
-            57	:	"9"	,
             65	:	"ф"	,
             66	:	"и"	,
             67	:	"с"	,
@@ -279,13 +362,25 @@ var key =
     }
 };
 
-function readMsg(type,params)  
+function readMsg(msg)  
 {
-    switch (type)
+    switch (msg.type)
     {
-        case "new" :  container.new(new TextStream(params.name,"",ctx));
-        case "add" :  container.add(params.name, params.value);
-        case "rmv" :  container.remove(params.name);
+        case "new" :  
+        {
+            container.new(new TextStream(msg.name,"",ctx));
+            break; 
+        }
+        case "add" :  
+        {
+            container.add(msg.name, msg.value);
+            break;
+        }
+        case "rmv" :  
+        {
+            container.remove(msg.name, msg.value);
+            break;
+        }
     }
     updateFrame();
 };
@@ -299,10 +394,12 @@ var Container = (function (){
 
     Container.prototype.update = function()
     {
-        for (var i=this.start;i<this.end ;i++)
-        {
-            alert(i+ " "+this.list[i].author);
-            this.list[i].draw(i-this.start);
+        if (this.list.length>0) {
+            this.list.find(x=>x.author==username).draw(0);
+            for (var i=this.start+1;i<this.end ;i++)
+            {
+                this.list[i].draw(i-this.start);
+            }
         }
     };
 
@@ -313,12 +410,15 @@ var Container = (function (){
 
     Container.prototype.add = function (name, value)
     {
-        this.list.find(x=>x.author==name).append(value);
+        if (value.length==1)
+        {
+            this.list.find(x=>x.author==name).append(value);
+        }
     };
 
-    Container.prototype.remove = function (name)
+    Container.prototype.remove = function (name, value)
     {
-        this.map.find(x=>x.author==name).remove();
+        this.list.find(x=>x.author==name).remove(value);
     };
 
     Container.prototype.delete = function (name)
@@ -342,6 +442,23 @@ var Container = (function (){
             this.end--;
         }
     };
+    Container.prototype.contains =function (e)
+    {
+        for (var i=0;i<this.list.length ;i++)
+        {
+            let params={   
+                x:10,
+                y:75+i*25,
+                width:(this.list[i].author.length+2)*12,
+                height:20
+            };
+            if(e.layerX > params.x && e.layerX < (params.x+params.width) && e.layerY > (params.y-params.height) && e.layerY < (params.y))
+            {
+                return params;   
+            }
+        }    
+    }
+    
 
     return Container;
 }()); 
@@ -349,7 +466,7 @@ var Container = (function (){
 var TextStream = (function(){
     function TextStream(author,text,ctx)
     {
-        this.text=text;
+        this.text=text+"";
         this.ctx=ctx;
         this.author=author;
     }
@@ -357,9 +474,16 @@ var TextStream = (function(){
     {
         if (this.text.length<35) this.text+=char;
     };
-    TextStream.prototype.remove = function(char)
+    TextStream.prototype.remove = function(type)
     {
-        this.text=this.text.substring(0,this.text.length-1);
+        if (type=="full")
+        {
+            this.text="";
+        }
+        else 
+        {
+            this.text=this.text.substring(0,this.text.length-1);
+        }
     };
     TextStream.prototype.draw = function(line)
     {
