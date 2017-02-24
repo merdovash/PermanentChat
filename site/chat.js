@@ -410,6 +410,8 @@ var Container = (function (){
 
     Container.prototype.add = function (name, value)
     {
+        if(!this.list.some(x=>x.author==name)) this.new(name);
+
         if (value.length==1)
         {
             this.list.find(x=>x.author==name).append(value);
