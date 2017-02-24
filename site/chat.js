@@ -427,9 +427,9 @@ var Container = (function (){
         this.list.find(x=>x.author==msg.name).append(char);
     };
 
-    Container.prototype.remove = function (name, value)
+    Container.prototype.remove = function (msg)
     {
-        this.list.find(x=>x.author==name).remove(value);
+        this.list.find(x=>x.author==msg.name).remove(msg.value);
     };
 
     Container.prototype.delete = function (name)
