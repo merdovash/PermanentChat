@@ -177,48 +177,7 @@ function initControlPanel2()
         }
         else
         {
-            var createDialog = container.contains(e);
-            if (createDialog)
-            {
-                dialog = new MyDialog({
-                    x:createDialog.x,
-                    y:createDialog.y,
-                    width:200,
-                    height:30,
-                    texts:[
-                        {
-                            name:"null",
-                            text:{
-                                buttonName:"nothing"
-                            },
-                            action: function()
-                            {
-                                container.add(username, "&")
-                            }
-                        },
-                        {
-                            name:"null2",
-                            text:{
-                                buttonName:"hello"
-                            },
-                            action: function()
-                            {
-                                container.add(username, "$")
-                            }
-                        }],
-                    ctx: ctx
-                })
-                panel2.add(dialog.buttons);
-                updateFrame();
-            }
-            else{
-                if (dialog && dialog.status && !dialog.contains(e))
-                {
-                    dialog.status=false;
-                    panel2.remove(dialog.buttons);
-                    updateFrame();
-                } 
-            }            
+            dialogHandler(e);           
         }
     });
     chatCanvas.addEventListener("mousemove",function (e)
@@ -228,6 +187,53 @@ function initControlPanel2()
 
     updateFrame();
     
+}
+
+function dialogHandler(e)
+{
+    var createDialog = container.contains(e);
+    if (createDialog)
+    {
+        dialog = new MyDialog({
+            x:createDialog.x,
+            y:createDialog.y,
+            width:200,
+            height:30,
+            texts:[
+                (createDialog.name!=username?{
+                    name:"to top",
+                    text:{
+                        buttonName:"to top"
+                    },
+                    action: function()
+                    {
+                        container.setToTop(createDialog.name);
+                        updateFrame();
+                    }
+                }:{}),
+                {
+                    name:"nothing",
+                    text:{
+                        buttonName:"nothing"
+                    },
+                    action: function()
+                    {
+                        container.add(username, "$")
+                    }
+                }],
+            ctx: ctx
+        })
+        panel2.add(dialog.buttons);
+        updateFrame();
+    }
+    else{
+        if (dialog && dialog.status && !dialog.contains(e))
+        {
+            dialog.status=false;
+            panel2.remove(dialog.buttons);
+            updateFrame();
+        } 
+    }
 }
 
 
@@ -417,6 +423,8 @@ var Container = (function (){
         if (!this.self && text.author==username)
         {
             this.self=text;
+            this.self.setColor("#ff4040");
+            this.self.self=true;
         }
         else if (!this.list.find(x=>x.author==text.author))
         {
@@ -477,20 +485,28 @@ var Container = (function (){
     };
     Container.prototype.contains =function (e)
     {
-        for (var count=0;count+this.start<this.list.length && count<this.size;i.count++)
+        for (var count=0;count+this.start<this.list.length+1 && count<this.size;count++)
         {
             var params={   
                 x:10,
-                y:75+i*25,
-                width:(this.list[count+this.start].author.length+2)*12,
-                height:20
+                y:75+count*25,
+                width:((count==0?this.self:this.list[count+this.start-1]).author.length+2)*12,
+                height:20,
+                name:(count>0?this.list[count+this.start-1].author:"")
             };
             if(e.layerX > params.x && e.layerX < (params.x+params.width) && e.layerY > (params.y-params.height) && e.layerY < (params.y))
             {
                 return params;   
             }
         }    
+    };
+    Container.prototype.setToTop = function(name)
+    {
+        var temp=this.list.find(x=>x.author==name);
+        this.list=this.list.filter(x=>x.author!=name);
+        this.list.unshift(temp);
     }
+
     
 
     return Container;
@@ -502,11 +518,17 @@ var TextStream = (function(){
         this.text=text+"";
         this.ctx=ctx;
         this.author=author;
-        this.self=self?true:false;        
+        this.self=false;
+        this.color="#ffffff";
+        this.maxLength=64-this.author.length;       
     }
     TextStream.prototype.append = function(char)
     {
-        if (this.text.length<35) this.text+=char;
+        if (this.text.length<this.maxLength) this.text+=char;
+    };
+    TextStream.prototype.setColor = function (color)
+    {
+        this.color=color;
     };
     TextStream.prototype.remove = function(type)
     {
@@ -521,10 +543,16 @@ var TextStream = (function(){
     };
     TextStream.prototype.draw = function(line)
     {
-        this.ctx.font="20px monospace";
-        this.ctx.fillStyle="#ffffff";
+        if (this.self)
+        {
+            this.ctx.fillStyle="#232323";
+            this.ctx.fillRect(0,55+line*25,(this.maxLength+this.author.length)*12,25);
+        }
+        this.ctx.font="22px monospace";
+        this.ctx.fillStyle=this.color;
         this.ctx.fillText(this.author+":\\",10,75+line*25);
 
+        this.ctx.font="20px monospace";
         this.ctx.fillStyle="#ffffff";
         this.ctx.fillText(this.text,10+(this.author.length+2)*12,75+line*25);
     };

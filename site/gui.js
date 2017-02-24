@@ -1,6 +1,8 @@
 var ControlPanel = (function () {
     function ControlPanel(buttonList) {
-        this.map = buttonList;
+        this.map=new Array();
+        this.add(buttonList);
+        
     }
     ControlPanel.prototype.draw = function (canvasContext) 
     {
@@ -8,16 +10,17 @@ var ControlPanel = (function () {
     };
     ControlPanel.prototype.add = function (values)
     {
+        
         for (var key in values)
         {
-            this.map[values[key].name]=values[key];
+            this.map.push(values[key]);
         }
     };
     ControlPanel.prototype.remove = function(values)
     {
         for (var key in values)
         {
-            delete this.map[values[key].name]
+            this.map.pop();
         }
     };
     ControlPanel.prototype.checkIntersect = function (e,type) {
@@ -182,7 +185,7 @@ var MyDialog = (function()
         this.buttons={};
         this.status=true;
         
-        let i=0;
+        var i=0;
         for (var button in params.texts)
         {
             this.buttons[i]=new Button(
