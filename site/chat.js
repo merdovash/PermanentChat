@@ -107,8 +107,9 @@ function updateFrame()
 {
     ctx.fillStyle="#160000";
     ctx.fillRect(0, 0, chatCanvas.width, chatCanvas.height)
-    panel2.draw(ctx);
+    
     container.update();
+    panel2.draw(ctx);
 }
 
 var panel2;
@@ -502,9 +503,12 @@ var Container = (function (){
     };
     Container.prototype.setToTop = function(name)
     {
-        var temp=this.list.find(x=>x.author==name);
-        this.list=this.list.filter(x=>x.author!=name);
-        this.list.unshift(temp);
+        if (name && name.length!="")
+        {
+            var temp=this.list.find(x=>x.author==name);
+            this.list=this.list.filter(x=>x.author!=name);
+            this.list.unshift(temp);
+        }
     }
 
     
