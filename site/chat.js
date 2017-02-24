@@ -26,9 +26,14 @@ var initChat = function(){
             {
                 if (e.keyCode>47 && e.keyCode<223 || e.keyCode==32)
                 {
-                    text.append(getSymbol(e.keyCode));
+                    container.add(username,getSymbol(e.keyCode));
                     updateFrame();
-                    if (socket) socket.send(JSON.stringify({type:"add", name:document.getElementById("username").value, value:getSymbol(e.keyCode)}));
+                    if (socket)
+                    {
+                        var message = {type:"add", name:document.getElementById("username").value, value:getSymbol(e.keyCode)};
+                        message = JSON.stringify(message);
+                        socket.send(message);
+                    } 
                     
                 }else if (e.keyCode==8)
                 {
@@ -42,17 +47,18 @@ var initChat = function(){
 }
 
 var alreadySignIn=false;
+var username;
 function logIn()
 {
     if (!alreadySignIn)
     {
-        var username = document.getElementById("username").value;
+        username = document.getElementById("username").value;
         if (username.length<1 && !username[0]==' ')
         {
             alert("username should have at least 1 symbol");
             return;
         }
-        text = new Text(username,"",ctx);
+        text = new TextStream(username,"",ctx);
         container.new(text);
         alreadySignIn=true;
         updateFrame();
@@ -75,7 +81,6 @@ var panel2;
 
 function initControlPanel2()
 {
-    alert (chatCanvas.width+ " "+chatCanvas.height);
     //fill panel
     panel2 = new ControlPanel([
         new Button({
@@ -148,7 +153,7 @@ function initWebSocket()
     socket = new WebSocket("ws://pechbich.fvds.ru/chat");
     socket.onopen = function() 
     {
-        alert("Соединение установлено.");
+        alert('Соединение установлено.');
     };
 
     socket.onclose = function(event) 
@@ -167,6 +172,7 @@ function initWebSocket()
     socket.onmessage = function(event) 
     {
         msg = JSON.parse(event.data);
+        alert(event.data);
         readMsg(msg.type, msg);
     };
 
@@ -277,37 +283,37 @@ function readMsg(type,params)
 {
     switch (type)
     {
-        case "new" :  container.new(params.name);
+        case "new" :  container.new(new TextStream(params.name,"",ctx));
         case "add" :  container.add(params.name, params.value);
         case "rmv" :  container.remove(params.name);
     }
+    updateFrame();
 };
 
 var Container = (function (){
     function Container (){
-        this.map = {0:null};
-        this.start=1;
-        this.end=1;
+        this.list = new Array();
+        this.start=0;
+        this.end=0;
     }
 
     Container.prototype.update = function()
     {
         for (var i=this.start;i<this.end ;i++)
         {
-            this.map[i].draw(i-this.start);
+            alert(i+ " "+this.list[i].author);
+            this.list[i].draw(i-this.start);
         }
     };
 
-    Container.prototype.new = function(author)
+    Container.prototype.new = function(text)
     {
-       
-        this.map[this.end]=author;
-        this.end+=1;
+        this.end=this.list.push(text);
     };
 
     Container.prototype.add = function (name, value)
     {
-        this.map.forEach(x=>{if (x.author==name) x.append(value)});
+        this.list.find(x=>x.author==name).append(value);
     };
 
     Container.prototype.remove = function (name)
@@ -317,12 +323,12 @@ var Container = (function (){
 
     Container.prototype.delete = function (name)
     {
-        this.map.delete(this.map.find(x=>x.author==name));
+        this.list=this.list.map(x=>x.author!=name);
     };
 
     Container.prototype.moveDown = function()
     {
-        if (this.map.length-this.end>0)
+        if (this.list.length-this.end>0)
         {
             this.start++;
             this.end++;
@@ -340,22 +346,22 @@ var Container = (function (){
     return Container;
 }()); 
 
-var Text = (function(){
-    function Text(author,text,ctx)
+var TextStream = (function(){
+    function TextStream(author,text,ctx)
     {
         this.text=text;
         this.ctx=ctx;
         this.author=author;
     }
-    Text.prototype.append = function(char)
+    TextStream.prototype.append = function(char)
     {
         if (this.text.length<35) this.text+=char;
     };
-    Text.prototype.remove = function(char)
+    TextStream.prototype.remove = function(char)
     {
         this.text=this.text.substring(0,this.text.length-1);
     };
-    Text.prototype.draw = function(line)
+    TextStream.prototype.draw = function(line)
     {
         this.ctx.font="20px monospace";
         this.ctx.fillStyle="#ffffff";
@@ -364,5 +370,5 @@ var Text = (function(){
         this.ctx.fillStyle="#ffffff";
         this.ctx.fillText(this.text,10+(this.author.length+2)*12,75+line*25);
     };
-    return Text;
+    return TextStream;
 }())
