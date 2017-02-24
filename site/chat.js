@@ -42,39 +42,14 @@ var initChat = function(){
             {
                 if (e.keyCode>47 && e.keyCode<223 || e.keyCode==32)
                 {                    
-                    if (socket)
-                    {
-                        var message = 
-                        {
-                            type:"add",
-                            name:username,
-                            value:
-                            {
-                                language:language.buttonName,
-                                code:e.keyCode
-                            }
-                        };
-                        message = JSON.stringify(message);
-                        socket.send(message);
-                    } 
+                    if (socket)  sendMsg("add",e.keyCode);
                     updateFrame();
                     
-                }else if (e.keyCode==8)
+                }
+                else if (e.keyCode==8)
                 {
+                    if (socket) sendMsg("rmv")
                     updateFrame();
-                    if (socket)
-                    {
-                        var msg=
-                        {
-                            type:"rmv",
-                            name:username,
-                            value:
-                            {
-                                full:fullClear
-                            }
-                        }
-                        socket.send(JSON.stringify(msg));
-                    } 
                 }
                 if (e.keyCode==17)
                 {
@@ -83,6 +58,28 @@ var initChat = function(){
             }
         },
         true);
+}
+
+function sendMsg(type,keyCode)
+{
+    var message = 
+    {
+        type:type,
+        name:username,
+        value:
+        type=="add"?
+        {
+            language:language.buttonName,
+            code:keyCode
+        }:type=="new"?
+        {
+
+        }:{
+            full:fullClear
+        }
+    };
+    message = JSON.stringify(message);
+    socket.send(message);
 }
 
 var alreadySignIn=false;
@@ -100,8 +97,7 @@ function logIn()
         //text = new TextStream(username,"",ctx);
         //container.new(text);
         alreadySignIn=true;
-        updateFrame();
-        if (socket && socket.state!="CLOSED") socket.send(JSON.stringify({type:"new",name:username}));
+        if (socket && socket.state!="CLOSED") sendMsg("new");
         document.getElementById("username").disabled = alreadySignIn;
         document.getElementById("loginButton").disabled=alreadySignIn;
     }
@@ -112,8 +108,7 @@ function updateFrame()
     ctx.fillStyle="#160000";
     ctx.fillRect(0, 0, chatCanvas.width, chatCanvas.height)
     panel2.draw(ctx);
-    container.update()
-    if (dialog && dialog.status) dialog.draw();
+    container.update();
 }
 
 var panel2;
@@ -149,6 +144,7 @@ function initControlPanel2()
             action : function()
             {
                 container.moveUp();
+                updateFrame();
             },
             text : 
             {
@@ -164,6 +160,7 @@ function initControlPanel2()
             action : function()
             {
                 container.moveDown();
+                updateFrame();
             },
             text :{
                 buttonName:"∨"
@@ -259,7 +256,6 @@ function initWebSocket()
     socket.onmessage = function(event) 
     {
         msg = JSON.parse(event.data);
-        
         readMsg(msg);
     };
 
@@ -376,7 +372,7 @@ function readMsg(msg)
     {
         case "new" :  
         {
-            container.new(new TextStream(msg.name,"",ctx));
+            container.new(new TextStream(msg.name,"",ctx,msg.name==username?true:false));
             break; 
         }
         case "add" :  
@@ -396,40 +392,68 @@ function readMsg(msg)
 var Container = (function (){
     function Container (){
         this.list = new Array();
+        this.self;
         this.start=0;
         this.end=0;
+        this.size=10;
     }
 
     Container.prototype.update = function()
     {
-        if (this.list.length>0) {
-            this.list.find(x=>x.author==username).draw(0);
-            for (var i=this.start+1;i<this.end ;i++)
+        if (this.list.length>0 || this.self) {
+            if (this.self) 
             {
-                this.list[i].draw(i-this.start);
+                this.self.draw(0);
+            }
+            for (var count=0;count+this.start<this.list.length && count<this.size;count++)
+            {
+                this.list[count+this.start].draw(count+1);
             }
         }
     };
 
     Container.prototype.new = function(text)
     {
-        if (!this.list.find(x=>x.author==text.author)) this.end=this.list.push(text);
+        if (!this.self && text.author==username)
+        {
+            this.self=text;
+        }
+        else if (!this.list.find(x=>x.author==text.author))
+        {
+            this.list.unshift(text);
+            if (!(this.start==0)) this.start+=1;
+        }
+        
+
     };
 
     Container.prototype.add = function (msg)
     {
-        if(!this.list.find(x=>x.author==msg.name)) 
-        {
-            this.new(new TextStream(msg.name, "", ctx));
-        }
-
         var char = getSymbol(msg.value);
-        this.list.find(x=>x.author==msg.name).append(char);
+        if (msg.name==username) 
+        {
+            this.self.append(char);
+        }
+        else
+        {
+            if(!this.list.find(x=>x.author==msg.name)) 
+            {
+                this.new(new TextStream(msg.name, "", ctx));
+            }
+            this.list.find(x=>x.author==msg.name).append(char);
+        }
     };
 
     Container.prototype.remove = function (msg)
     {
-        this.list.find(x=>x.author==msg.name).remove(msg.value);
+        if (msg.name==username)
+        {
+            this.self.remove(msg.value);
+        }
+        else 
+        {
+            this.list.find(x=>x.author==msg.name).remove(msg.value);
+        }
     };
 
     Container.prototype.delete = function (name)
@@ -439,10 +463,9 @@ var Container = (function (){
 
     Container.prototype.moveDown = function()
     {
-        if (this.list.length-this.end>0)
+        if (this.list.length-this.size>this.start)
         {
             this.start++;
-            this.end++;
         }
     };
     Container.prototype.moveUp = function()
@@ -450,17 +473,16 @@ var Container = (function (){
         if (this.start>0)
         {
             this.start--;
-            this.end--;
         }
     };
     Container.prototype.contains =function (e)
     {
-        for (var i=0;i<this.list.length ;i++)
+        for (var count=0;count+this.start<this.list.length && count<this.size;i.count++)
         {
             var params={   
                 x:10,
                 y:75+i*25,
-                width:(this.list[i].author.length+2)*12,
+                width:(this.list[count+this.start].author.length+2)*12,
                 height:20
             };
             if(e.layerX > params.x && e.layerX < (params.x+params.width) && e.layerY > (params.y-params.height) && e.layerY < (params.y))
@@ -475,11 +497,12 @@ var Container = (function (){
 }()); 
 
 var TextStream = (function(){
-    function TextStream(author,text,ctx)
+    function TextStream(author,text,ctx,self)
     {
         this.text=text+"";
         this.ctx=ctx;
         this.author=author;
+        this.self=self?true:false;        
     }
     TextStream.prototype.append = function(char)
     {
