@@ -96,7 +96,7 @@ var Container = (function (){
                 y:format.yAlign+count*format.height,
                 width:((count==0?this.self:this.list[count+this.start-1]).author.length+2)*format.width,
                 height:format.height,
-                name:(count>0?this.list[count+this.start-1].author:"")
+                name:(count>0?this.list[count+this.start-1].author:username)
             };
             if(e.layerX > params.x && e.layerX < (params.x+params.width) && e.layerY > (params.y-params.height) && e.layerY < (params.y))
             {
@@ -112,7 +112,12 @@ var Container = (function (){
             this.list=this.list.filter(x=>x.author!=name);
             this.list.unshift(temp);
         }
-    }
+    };
+    Container.prototype.changeParams = function (params)
+    {
+        if (params.name==username) this.self.setProperties(params.value);
+        else this.list.find(x=>x.author==params.name).setProperties(params.value);
+    };
 
     
 
@@ -123,7 +128,7 @@ var format=
 {
     length:64,
     height:25,
-    width:12,
+    width:11,
     yAlign:85,
     xAlign:10
 
@@ -137,7 +142,12 @@ var TextStream = (function(){
         this.author=author;
         this.self=false;
         this.color="#ffffff";
-        this.maxLength=format.length-this.author.length;       
+        this.maxLength=format.length-this.author.length;     
+        this.params=
+        {
+            textAlign:"left",
+            color:"#ffffff"
+        }
     }
     TextStream.prototype.append = function(char)
     {
@@ -158,20 +168,45 @@ var TextStream = (function(){
             this.text=this.text.substring(0,this.text.length-1);
         }
     };
+    TextStream.prototype.setProperties =function (params) 
+    {
+        for (var key in params)
+        {
+            if (this.params[key]) this.params[key]=params[key];
+        }
+    }
     TextStream.prototype.draw = function(line)
     {
         if (this.self)
         {
             this.ctx.fillStyle="#232323";
-            this.ctx.fillRect(0,format.yAlign-format.height+5+line*25,(this.maxLength+this.author.length)*format.width,format.height);
+            this.ctx.fillRect(0,format.yAlign-format.height+5+line*format.height,(this.maxLength+this.author.length+3)*format.width,format.height);
         }
-        this.ctx.font="22px monospace";
+        this.ctx.font="20px monospace";
         this.ctx.fillStyle=this.color;
         this.ctx.fillText(this.author+":\\",format.xAlign,format.yAlign+line*format.height);
 
         this.ctx.font="20px monospace";
-        this.ctx.fillStyle="#ffffff";
-        this.ctx.fillText(this.text,format.xAlign+(this.author.length+2)*format.width,format.yAlign+line*format.height);
+        this.ctx.fillStyle=this.params.color;
+        switch (this.params.textAlign)
+        {
+            case "left":
+            {
+                this.ctx.fillText(this.text,format.xAlign+(this.author.length+2)*format.width,format.yAlign+line*format.height);
+                break;
+            }
+            case "right":
+            {
+                this.ctx.fillText(this.text,format.xAlign+(format.length+2)*format.width-(this.text.length*format.width),format.yAlign+line*format.height);
+                break;
+            }
+            case "center":
+            {
+                this.ctx.fillText(this.text,format.xAlign+(this.author.length+2+(this.maxLength-this.text.length)/2)*format.width,format.yAlign+line*format.height);
+            }
+
+        }
+        
     };
     return TextStream;
 }())
