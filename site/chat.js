@@ -3,8 +3,21 @@ var ctx;
 var message;
 var text
 var stream;
-var language={buttonName: "en"};
-var languageButton;
+
+var language=
+{   
+    langs:["en","rus"],
+    current:0,
+    buttonName:"en"
+};
+
+function switchLanguage()
+{
+    language.current+=1;
+    if (language.current>language.langs.length-1) language.current=0;
+    language.buttonName=language.langs[language.current];
+}
+
 var container;
 var dialog;
 
@@ -17,7 +30,7 @@ var initChat = function(){
     ctx = chatCanvas.getContext('2d');
     chatCanvas.width=format.width*format.length+70;
 
-    container = new Container();
+    container = new Container({ctx:ctx});
     container.update();
 
     initControlPanel2();
@@ -27,17 +40,14 @@ var initChat = function(){
         "keydown",
         function (e)
         {
-            if (alreadySignIn)
+            if (e.keyCode==17)
             {
-                if (e.keyCode==17)
-                {
-                    ctrl=true;    
-                }
-                if (e.keyCode==16)
-                {
-                    shift=true;
-                }
+                ctrl=true;    
             }
+            if (e.keyCode==16)
+            {
+                shift=true;
+            } 
         },
         true
     );
@@ -46,26 +56,28 @@ var initChat = function(){
         "keyup",
         function (e)
         {
-            if (alreadySignIn)
+            if (state.login)
             {
                 if (e.keyCode>47 && e.keyCode<223 || e.keyCode==32)
                 {                    
-                    sendMsg("add",{code:e.keyCode, shift:shift, language:language.buttonName});
+                    sendMsg({type:"add",name:username,value:{code:e.keyCode, shift:shift, language:language.buttonName}});
                     updateFrame();
                     
                 }
                 else if (e.keyCode==8)
                 {
-                    sendMsg("rmv", {full:ctrl})
+                    sendMsg({type:"rmv",name:username,value: {full:ctrl}})
                     updateFrame();
                 }else if (e.keyCode==13)
                 {
                     if (ctrl)
                     {
                         var command = getCommand(container.self.text);
+
                         if (command) 
                         {
-                            sendMsg("set",command)
+                            
+                            sendMsg(command)
                         }
                     } 
                 }
@@ -76,22 +88,58 @@ var initChat = function(){
                 if (e.keyCode==16)
                 {
                     shift=false;
+                    if (ctrl) 
+                    {
+                        switchLanguage();
+                        updateFrame();
+                    }
+                }
+            }
+            else 
+            {
+                if (e.keyCode>47 && e.keyCode<223 || e.keyCode==32)
+                {                    
+                    readMsg({type:"add",value:{code:e.keyCode, shift:shift, language:language.buttonName}});
+                    updateFrame();
+                    
+                }
+                else if (e.keyCode==8)
+                {
+                    readMsg({type:"rmv",value: {full:ctrl}})
+                    updateFrame();
+                }else if (e.keyCode==13)
+                {
+                    if (ctrl)
+                    {
+                        
+                        var command = getCommand(container.empty.text);
+                        if (command) 
+                        {
+                            sendMsg(command)
+                        }
+                    } 
+                }
+                if (e.keyCode==17)
+                {
+                    ctrl=false;
+                }
+                if (e.keyCode==16)
+                {
+                    shift=false;
+                    if (ctrl) 
+                    {
+                        switchLanguage();
+                        updateFrame();
+                    }
                 }
             }
         },
         true);
 }
 
-function sendMsg(type,value)
+function sendMsg(message)
 {
-    var message = 
-    {
-        type:type,
-        name:username,
-        value:value
-    };
-    message = JSON.stringify(message);
-    socket.send(message);
+    socket.send(JSON.stringify(message));
 }
 
 function readMsg(msg)  
@@ -100,7 +148,7 @@ function readMsg(msg)
     {
         case "new" :  
         {
-            container.new(new TextStream(msg.name,"",ctx,msg.name==username?true:false));
+            container.new(new TextStream(msg.name,"",ctx));
             break; 
         }
         case "add" :  
@@ -129,37 +177,35 @@ function getCommand(text)
     {
         if (tree[0]=='-set')
         {
-            if (tree[1] && tree[1]=="color")
+            if (tree[1] && tree[1]=="color" && tree.length==3)
             {
                 if (tree[2]) {
                     var regex = new RegExp('#[0-f]{6}','i');
-                    if (regex.exec(tree[2])) return {color:tree[2]}
+                    if (regex.exec(tree[2])) return {type:"set",name:username,value:{color:tree[2]}}
                 }
+            }else if (tree[1] && tree[1]=="size")
+            {
+                if (tree[2])
+                {
+                    
+                    var regex = new RegExp('[0-9]{1,2}');
+                    if (regex.exec(tree[2]) && tree[2]<20 && tree[2]>10) return {type:"set",name:username,value:{size:tree[2]}}
+                }
+            }
+        }else if (!state.login && tree[0]=='-login' && tree.length==2)
+        {
+            if (tree[1] && tree[1].length<16)
+            {
+                username=tree[1];
+                state.login=true;
+                return {type:"new",name:tree[1],value:{}}
             }
         }
     }
 }
 
-var alreadySignIn=false;
+var state={login:false};
 var username;
-function logIn()
-{
-    if (!alreadySignIn)
-    {
-        username = document.getElementById("username").value;
-        if (username.length<1 && !username[0]==' ')
-        {
-            alert("username should have at least 1 symbol");
-            return;
-        }
-        //text = new TextStream(username,"",ctx);
-        //container.new(text);
-        alreadySignIn=true;
-        if (socket && socket.state!="CLOSED") sendMsg("new");
-        document.getElementById("username").disabled = alreadySignIn;
-        document.getElementById("loginButton").disabled=alreadySignIn;
-    }
-}
 
 function updateFrame()
 {
@@ -270,7 +316,7 @@ function dialogHandler(e)
                     action: function()
                     {
                         var next = container.self.params.textAlign!="left"?container.self.params.textAlign!="right"?"left":"center":"right";
-                        sendMsg("set",{textAlign:next});
+                        sendMsg({type:"set",name:username,value:{textAlign:next}});
                     }
                 }
             ]
@@ -286,7 +332,17 @@ function dialogHandler(e)
                         container.setToTop(createDialog.name);
                         updateFrame();
                     }
-                }
+                },
+                {
+                    name:"listen",
+                    text:{
+                        buttonName:"listen"
+                    },
+                    action: function()
+                    {
+                        
+                    }
+                } 
             ],
             ctx: ctx
         })
@@ -358,23 +414,59 @@ function decode(value)
 
 function getSymbol(dictionary, value)
 {
-    var char = dictionary[value.code];
+    var char = dictionary.main[value.code];
     if (char)
     {
         if (value.shift) char = char.toUpperCase();
     }
     else 
     {
-        char = symbolCode[value.shift][value.code];
+        char = dictionary.special[value.shift][value.code];
     }
     return char;
 }
 
 var symbolCode=
 {
-     false:
-     {
-          192 :   "`",
+     
+};
+
+var englishCode =
+{
+    main:
+    {     
+        65	:	"a"	,
+        66	:	"b"	,
+        67	:	"c"	,
+        68	:	"d"	,
+        69	:	"e"	,
+        70	:	"f"	,
+        71	:	"g"	,
+        72	:	"h"	,
+        73	:	"i"	,
+        74	:	"j"	,
+        75	:	"k"	,
+        76	:	"l"	,
+        77	:	"m"	,
+        78	:	"n"	,
+        79	:	"o"	,
+        80	:	"p"	,
+        81	:	"q"	,
+        82	:	"r"	,
+        83	:	"s"	,
+        84	:	"t"	,
+        85	:	"u"	,
+        86	:	"v"	,
+        87	:	"w"	,
+        88	:	"x"	,
+        89	:	"y"	,
+        90	:	"z"	,
+    },
+    special:
+    {
+        false:
+        {
+            192 :   "`",
             32  :   " " ,
             48	:	"0"	,
             49	:	"1"	,
@@ -396,9 +488,9 @@ var symbolCode=
             189 :   "-",
             107 :   "+",
             187 :   "="
-     },
-     true:
-     {
+        },
+        true:
+        {
             192 :   "~",
             32  :   " " ,
             48	:	")"	,
@@ -421,42 +513,16 @@ var symbolCode=
             189 :   "_",
             107 :   "+",
             187 :   "+"
-     }
-};
-
-var englishCode =
-{
-            65	:	"a"	,
-            66	:	"b"	,
-            67	:	"c"	,
-            68	:	"d"	,
-            69	:	"e"	,
-            70	:	"f"	,
-            71	:	"g"	,
-            72	:	"h"	,
-            73	:	"i"	,
-            74	:	"j"	,
-            75	:	"k"	,
-            76	:	"l"	,
-            77	:	"m"	,
-            78	:	"n"	,
-            79	:	"o"	,
-            80	:	"p"	,
-            81	:	"q"	,
-            82	:	"r"	,
-            83	:	"s"	,
-            84	:	"t"	,
-            85	:	"u"	,
-            86	:	"v"	,
-            87	:	"w"	,
-            88	:	"x"	,
-            89	:	"y"	,
-            90	:	"z"	,
+        }
+    }
 };
 
 var russianCode=
 {
-        65	:	"ф"	,
+    main :{
+            
+            192 :   "ё",
+            65	:	"ф"	,
             66	:	"и"	,
             67	:	"с"	,
             68	:	"в"	,
@@ -488,6 +554,47 @@ var russianCode=
             222 :   "э" ,
             219 :   "х" ,
             221 :   "ъ"
+    },
+    special:
+    {
+
+        false:
+        {
+            32  :   " " ,
+            48	:	"0"	,
+            49	:	"1"	,
+            50	:	"2"	,
+            51	:	"3"	,
+            52	:	"4"	,
+            53	:	"5"	,
+            54	:	"6"	,
+            55	:	"7"	,
+            56	:	"8"	,
+            57	:	"9"	,
+            190 :   "." ,
+            189 :   "-",
+            107 :   "+",
+            187 :   "="
+        },
+        true:
+        {
+            32  :   " " ,
+            48	:	")"	,
+            49	:	"!"	,
+            50	:	'"'	,
+            51	:	"№"	,
+            52	:	";"	,
+            53	:	"%"	,
+            54	:	":"	,
+            55	:	"?"	,
+            56	:	"*"	,
+            57	:	"(",
+            191 :   "/",
+            189 :   "_",
+            107 :   "+",
+            187 :   "+"
+        }
+    }
 }
 
 

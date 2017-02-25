@@ -233,7 +233,8 @@ var MyDialog = (function()
     };
     MyDialog.prototype.some = function (callback)
     {
-        return this.buttons.some(callback);
+        var temp = this.buttons.some(callback);
+        return temp;
     }
 
     return MyDialog;
