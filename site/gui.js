@@ -1,33 +1,42 @@
 var ControlPanel = (function () {
     function ControlPanel(buttonList) {
         this.map=new Array();
-        this.add(buttonList);
-        
+        this.dialog;
+        for (var i=0; i<buttonList.length;i++)
+        {
+            this.map.push(buttonList[i]);
+        }
     }
     ControlPanel.prototype.draw = function (canvasContext) 
     {
         this.map.forEach(x=> x.draw(canvasContext));
+        if (this.dialog && this.dialog.active) this.dialog.draw();
     };
-    ControlPanel.prototype.add = function (values)
+    ControlPanel.prototype.setDialog = function (dialog)
     {
-        
-        for (var key in values)
-        {
-            this.map.push(values[key]);
-        }
+        this.dialog=dialog;
     };
-    ControlPanel.prototype.remove = function(values)
-    {
-        for (var key in values)
-        {
-            this.map.pop();
-        }
-    };
+
     ControlPanel.prototype.checkIntersect = function (e,type) {
-        this.map.forEach(x=> x.Intersect(e,type));
+        
+        if (this.dialog && this.dialog.active) 
+        {
+            this.dialog.Intersect(e,type);
+            this.map.forEach(x=> x.Intersect(e,type));
+            var mouseover = this.map.some(x=>x.mouseoverChanges) || this.dialog.some(x=>x.mouseoverChange);
+            var mousepress = this.map.some(x=> x.actionChange);
+            var dialogpress =  this.dialog.some(x=>x.actionChange);
+        }
+        else 
+        {
+            this.map.forEach(x=> x.Intersect(e,type));
+            var mouseover = this.map.some(x=>x.mouseoverChanges);
+            var mousepress = this.map.some(x=> x.actionChange);
+        }
         return {
-            mouseover:(this.map.some(x=>x.mouseoverChanges)),
-            mousepress:(this.map.some(x=> x.actionChange==true))
+            mouseover:mouseover,
+            mousepress:mousepress,
+            dialogpress:dialogpress
         }
     };
     ControlPanel.prototype.setMouseActions = function(canvas,params)
@@ -35,6 +44,10 @@ var ControlPanel = (function () {
         canvas.addEventListener("mousedown",params.mousedown);
         canvas.addEventListener("mousmove",params.mousemove);
     };
+    ControlPanel.prototype.deactivateDialog = function()
+    {
+        this.dialog.active=false;
+    }
     
     return ControlPanel;
 }());
@@ -182,13 +195,14 @@ var MyDialog = (function()
         this.y=params.y;
         this.width=params.width;
         this.height=params.height;
-        this.buttons={};
-        this.status=true;
+        this.buttons=new Array();
+        this.active=true;
         
         var i=0;
         for (var button in params.texts)
         {
-            this.buttons[i]=new Button(
+            
+            this.buttons.push(new Button(
                 {
                     x:this.x,
                     y:this.y+i*this.height,
@@ -197,27 +211,30 @@ var MyDialog = (function()
                     name:params.texts[button].name,
                     text:params.texts[button].text,
                     action:params.texts[button].action
-                });
-            i+=1;
+                }));
+            i++;
         }
         this.ctx=params.ctx;
     }
     
     MyDialog.prototype.draw = function()
     {
-        for (var key in this.buttons)
+        for (var i=0;i<this.buttons.length;i++)
         {
-            this.buttons[key].draw(this.ctx);
+            this.buttons[i].draw(this.ctx);
         }
     };
-    MyDialog.prototype.contains = function(e)
+    MyDialog.prototype.Intersect = function(e,type)
     {
-        for (var key in this.buttons)
+        for (var i=0;i<this.buttons.length;i++)
         {
-            if (this.buttons[key].Intersect(e)) return true;
+            this.buttons[i].Intersect(e,type);
         }
-        return false;
     };
+    MyDialog.prototype.some = function (callback)
+    {
+        return this.buttons.some(callback);
+    }
 
     return MyDialog;
 }())

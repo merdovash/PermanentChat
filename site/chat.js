@@ -172,13 +172,14 @@ function initControlPanel2()
     //add listener
     chatCanvas.addEventListener("mousedown",function (e)
     {
-        if (panel2.checkIntersect(e, true).mousepress) 
+        var mouseAction = panel2.checkIntersect(e,true);
+        if (mouseAction.mousepress) 
         {
             updateFrame();
         }
         else
         {
-            dialogHandler(e);           
+            dialogHandler(e);
         }
     });
     chatCanvas.addEventListener("mousemove",function (e)
@@ -219,19 +220,17 @@ function dialogHandler(e)
                     },
                     action: function()
                     {
-                        container.add(username, "$")
                     }
                 }],
             ctx: ctx
         })
-        panel2.add(dialog.buttons);
+        panel2.setDialog(dialog);
         updateFrame();
     }
     else{
-        if (dialog && dialog.status && !dialog.contains(e))
+        if (dialog && dialog.active && !dialog.Intersect(e))
         {
-            dialog.status=false;
-            panel2.remove(dialog.buttons);
+            dialog.active=false;    
             updateFrame();
         } 
     }
@@ -489,10 +488,10 @@ var Container = (function (){
         for (var count=0;count+this.start<this.list.length+1 && count<this.size;count++)
         {
             var params={   
-                x:10,
-                y:75+count*25,
-                width:((count==0?this.self:this.list[count+this.start-1]).author.length+2)*12,
-                height:20,
+                x:format.xAlign,
+                y:format.yAlign+count*format.height,
+                width:((count==0?this.self:this.list[count+this.start-1]).author.length+2)*format.width,
+                height:format.height,
                 name:(count>0?this.list[count+this.start-1].author:"")
             };
             if(e.layerX > params.x && e.layerX < (params.x+params.width) && e.layerY > (params.y-params.height) && e.layerY < (params.y))
@@ -516,6 +515,16 @@ var Container = (function (){
     return Container;
 }()); 
 
+var format=
+{
+    length:64,
+    height:25,
+    width:12,
+    yAlign:85,
+    xAlign:10
+
+}
+
 var TextStream = (function(){
     function TextStream(author,text,ctx,self)
     {
@@ -524,7 +533,7 @@ var TextStream = (function(){
         this.author=author;
         this.self=false;
         this.color="#ffffff";
-        this.maxLength=64-this.author.length;       
+        this.maxLength=format.length-this.author.length;       
     }
     TextStream.prototype.append = function(char)
     {
@@ -550,15 +559,15 @@ var TextStream = (function(){
         if (this.self)
         {
             this.ctx.fillStyle="#232323";
-            this.ctx.fillRect(0,55+line*25,(this.maxLength+this.author.length)*12,25);
+            this.ctx.fillRect(0,format.yAlign-format.height+5+line*25,(this.maxLength+this.author.length)*format.width,format.height);
         }
         this.ctx.font="22px monospace";
         this.ctx.fillStyle=this.color;
-        this.ctx.fillText(this.author+":\\",10,75+line*25);
+        this.ctx.fillText(this.author+":\\",format.xAlign,format.yAlign+line*format.height);
 
         this.ctx.font="20px monospace";
         this.ctx.fillStyle="#ffffff";
-        this.ctx.fillText(this.text,10+(this.author.length+2)*12,75+line*25);
+        this.ctx.fillText(this.text,format.xAlign+(this.author.length+2)*format.width,format.yAlign+line*format.height);
     };
     return TextStream;
 }())
