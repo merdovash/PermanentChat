@@ -7,7 +7,10 @@ var language={buttonName: "en"};
 var languageButton;
 var container;
 var dialog;
-var fullClear=false;
+
+//buttondown indicator
+var ctrl=false; //cntrl
+var shift=false;
 
 var initChat = function(){
     chatCanvas = document.getElementById('chatCanvas');
@@ -28,7 +31,11 @@ var initChat = function(){
             {
                 if (e.keyCode==17)
                 {
-                    fullClear=true;    
+                    ctrl=true;    
+                }
+                if (e.keyCode==16)
+                {
+                    shift=true;
                 }
             }
         },
@@ -43,25 +50,95 @@ var initChat = function(){
             {
                 if (e.keyCode>47 && e.keyCode<223 || e.keyCode==32)
                 {                    
-                    if (socket)  sendMsg("add",e.keyCode);
+                    sendMsg("add",{code:e.keyCode, shift:shift, language:language.buttonName});
                     updateFrame();
                     
                 }
                 else if (e.keyCode==8)
                 {
-                    if (socket) sendMsg("rmv")
+                    sendMsg("rmv", {full:ctrl})
                     updateFrame();
+                }else if (e.keyCode==13)
+                {
+                    if (ctrl)
+                    {
+                        var command = getCommand(container.self.text);
+                        if (command) 
+                        {
+                            sendMsg("set",command)
+                        }
+                    } 
                 }
                 if (e.keyCode==17)
                 {
-                    fullClear=false;
+                    ctrl=false;
+                }
+                if (e.keyCode==16)
+                {
+                    shift=false;
                 }
             }
         },
         true);
 }
 
+function sendMsg(type,value)
+{
+    var message = 
+    {
+        type:type,
+        name:username,
+        value:value
+    };
+    message = JSON.stringify(message);
+    socket.send(message);
+}
 
+function readMsg(msg)  
+{
+    switch (msg.type)
+    {
+        case "new" :  
+        {
+            container.new(new TextStream(msg.name,"",ctx,msg.name==username?true:false));
+            break; 
+        }
+        case "add" :  
+        {
+            container.add(msg);
+            break;
+        }
+        case "rmv" :  
+        {
+            container.remove(msg);
+            break;
+        }
+        case "set" :
+        {
+            container.changeParams(msg);
+            break;
+        }
+    }
+    updateFrame();
+};
+
+function getCommand(text)
+{
+    var tree = text.split(' ');
+    if (tree[0] && tree[0][0]=='-')
+    {
+        if (tree[0]=='-set')
+        {
+            if (tree[1] && tree[1]=="color")
+            {
+                if (tree[2]) {
+                    var regex = new RegExp('#[0-f]{6}','i');
+                    if (regex.exec(tree[2])) return {color:tree[2]}
+                }
+            }
+        }
+    }
+}
 
 var alreadySignIn=false;
 var username;
@@ -193,7 +270,7 @@ function dialogHandler(e)
                     action: function()
                     {
                         var next = container.self.params.textAlign!="left"?container.self.params.textAlign!="right"?"left":"center":"right";
-                        sendMsg("set",next);
+                        sendMsg("set",{textAlign:next});
                     }
                 }
             ]
@@ -260,21 +337,44 @@ function initWebSocket()
     };
 }
 
-function getSymbol(value)
+function decode(value)
 {
-    var temp;
-    if (decoder[value.language]) temp = decoder[value.language][value.code];
-    if (!temp)
+    var dict;
+    switch(value.language)
     {
-        temp = decoder.symbol[value.code]
-    }
-    return temp;
+        case "en":
+        {
+            dict=englishCode;
+            break;
+        }
+        case "rus":   
+        {
+            dict=russianCode;
+            break;
+        }
+    };
+    return getSymbol(dict,value);
 }
-var decoder =
+
+function getSymbol(dictionary, value)
 {
-    symbol:
+    var char = dictionary[value.code];
+    if (char)
     {
-            192 : "`",
+        if (value.shift) char = char.toUpperCase();
+    }
+    else 
+    {
+        char = symbolCode[value.shift][value.code];
+    }
+    return char;
+}
+
+var symbolCode=
+{
+     false:
+     {
+          192 :   "`",
             32  :   " " ,
             48	:	"0"	,
             49	:	"1"	,
@@ -296,37 +396,67 @@ var decoder =
             189 :   "-",
             107 :   "+",
             187 :   "="
-    },
-    en: {   
-            65	:	"A"	,
-            66	:	"B"	,
-            67	:	"C"	,
-            68	:	"D"	,
-            69	:	"E"	,
-            70	:	"F"	,
-            71	:	"G"	,
-            72	:	"H"	,
-            73	:	"I"	,
-            74	:	"J"	,
-            75	:	"K"	,
-            76	:	"L"	,
-            77	:	"M"	,
-            78	:	"N"	,
-            79	:	"O"	,
-            80	:	"P"	,
-            81	:	"Q"	,
-            82	:	"R"	,
-            83	:	"S"	,
-            84	:	"T"	,
-            85	:	"U"	,
-            86	:	"V"	,
-            87	:	"W"	,
-            88	:	"X"	,
-            89	:	"Y"	,
-            90	:	"Z"	,
-    },
-    rus :{  
-            65	:	"ф"	,
+     },
+     true:
+     {
+            192 :   "~",
+            32  :   " " ,
+            48	:	")"	,
+            49	:	"!"	,
+            50	:	"@"	,
+            51	:	"#"	,
+            52	:	"$"	,
+            53	:	"%"	,
+            54	:	"^"	,
+            55	:	"&"	,
+            56	:	"*"	,
+            57	:	"(",
+            191 :   "/",
+            186 :   ":" ,
+            188 :   "\<",
+            190 :   ">" ,
+            222 :   '\"' ,
+            219 :   "\{" ,
+            221 :   "\}",
+            189 :   "_",
+            107 :   "+",
+            187 :   "+"
+     }
+};
+
+var englishCode =
+{
+            65	:	"a"	,
+            66	:	"b"	,
+            67	:	"c"	,
+            68	:	"d"	,
+            69	:	"e"	,
+            70	:	"f"	,
+            71	:	"g"	,
+            72	:	"h"	,
+            73	:	"i"	,
+            74	:	"j"	,
+            75	:	"k"	,
+            76	:	"l"	,
+            77	:	"m"	,
+            78	:	"n"	,
+            79	:	"o"	,
+            80	:	"p"	,
+            81	:	"q"	,
+            82	:	"r"	,
+            83	:	"s"	,
+            84	:	"t"	,
+            85	:	"u"	,
+            86	:	"v"	,
+            87	:	"w"	,
+            88	:	"x"	,
+            89	:	"y"	,
+            90	:	"z"	,
+};
+
+var russianCode=
+{
+        65	:	"ф"	,
             66	:	"и"	,
             67	:	"с"	,
             68	:	"в"	,
@@ -358,75 +488,6 @@ var decoder =
             222 :   "э" ,
             219 :   "х" ,
             221 :   "ъ"
-    }
-};
-
-function sendMsg(type,value)
-{
-    var message = 
-    {
-        type:type,
-        name:username,
-    };
-    switch(type)
-    {
-        case "add":
-        {
-            message.value = {
-                language:language.buttonName,
-                code:value
-            };
-            break;
-        }
-        case "rmv":
-        {
-            message.value ={
-                full:fullClear
-            };
-            break;
-        }
-        case "set":
-        {
-            message.value={
-                textAlign:value
-            }
-            break;
-        }
-        default :
-        {
-            message.value={};
-            break;
-        }
-    }
-
-    message = JSON.stringify(message);
-    socket.send(message);
 }
 
-function readMsg(msg)  
-{
-    switch (msg.type)
-    {
-        case "new" :  
-        {
-            container.new(new TextStream(msg.name,"",ctx,msg.name==username?true:false));
-            break; 
-        }
-        case "add" :  
-        {
-            container.add(msg);
-            break;
-        }
-        case "rmv" :  
-        {
-            container.remove(msg);
-            break;
-        }
-        case "set" :
-        {
-            container.changeParams(msg);
-            break;
-        }
-    }
-    updateFrame();
-};
+

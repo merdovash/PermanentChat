@@ -41,7 +41,7 @@ var Container = (function (){
 
     Container.prototype.add = function (msg)
     {
-        var char = getSymbol(msg.value);
+        var char = decode(msg.value);
         if (msg.name==username) 
         {
             this.self.append(char);
