@@ -7,7 +7,7 @@ var Container = (function (){
         this.empty.setColor("#8080ff");
         this.start=0;
         this.end=0;
-        this.size=10;
+        this.size=format.max;
         this.ctx=params.ctx;
     }
 
@@ -26,6 +26,11 @@ var Container = (function (){
         {
              this.empty.draw(0);
         }
+            this.ctx.beginPath();
+            this.ctx.lineWidth="2";
+            this.ctx.strokeStyle="#0f0f30";
+            this.ctx.rect(format.xAlign,format.yAlign+5,format.length*format.width,format.height*this.size); 
+            this.ctx.stroke()   
     };
 
     Container.prototype.new = function(text)
@@ -133,6 +138,11 @@ var Container = (function (){
             else this.list.find(x=>x.author==params.name).setProperties(params.value);
         }
     };
+    Container.prototype.listenTo = function(name)
+    {
+        var temp = this.list.find(x=>x.author==name);
+        temp.listen=!temp.listen;
+    }
 
     
 
@@ -144,11 +154,30 @@ var format=
     length:64,
     height:25,
     width:11,
-    yAlign:85,
+    yAlign:35,
     xAlign:10,
-    size:20
-
+    size:20,
+    max:10,
 }
+
+var sound = 
+{
+    append:new Audio('sound.mp3'),
+    rmv:new Audio('rmv.mp3'),
+    place:0,
+    play : async function (audio)
+    {
+        /*sound.place += 1;
+        if (sound.place > audio.duration) sound.place = 1;
+        audio.play();
+        while (audio.currentTime < sound.place) {
+            alert(audio.currentTime + " " + sound.place);
+        }
+        audio.pause();
+        */
+    }
+};
+
 
 var TextStream = (function(){
     function TextStream(author,text,ctx)
@@ -162,13 +191,23 @@ var TextStream = (function(){
         {
             textAlign:"left",
             color:"#ffffff",
-            size:20
-        }
-        this.width=format.length-this.author.length;   
+            size:20,
+            bgcolor:"#232323"
+        }  
+        this.listen=false;
+        this.place=1;
     }
     TextStream.prototype.append = function(char)
     {
-        if (this.text.length<this.width) this.text+=char;
+        this.text+=char;
+        while (this.text.length>this.width())
+        {
+            this.text=this.text.slice(1);
+        }
+        if (this.listen)
+        {
+            sound.play(sound.append);
+        }
     };
     TextStream.prototype.setColor = function (color)
     {
@@ -179,6 +218,7 @@ var TextStream = (function(){
         if (type.full)
         {
             this.text="";
+            if (this.listen) sound.rmv.play();
         }
         else 
         {
@@ -198,14 +238,13 @@ var TextStream = (function(){
     };
     TextStream.prototype.draw = function(line)
     {
-        if (this.self)
-        {
-            this.ctx.fillStyle="#232323";
-            this.ctx.fillRect(0,format.yAlign-format.height+5+line*format.height,(format.length+3)*format.width,format.height);
-        }
+
+        this.ctx.fillStyle=this.params.bgcolor;
+        this.ctx.fillRect(format.xAlign,format.yAlign-format.height+5+line*format.height,format.length*format.width,format.height);
+
         this.ctx.font="20px monospace";
         this.ctx.fillStyle=this.color;
-        this.ctx.fillText(this.author+":\\",format.xAlign,format.yAlign+line*format.height);
+        this.ctx.fillText(this.author+">>",format.xAlign,format.yAlign+line*format.height);
 
         this.ctx.font=this.params.size+"px monospace";
         this.ctx.fillStyle=this.params.color;
@@ -218,17 +257,21 @@ var TextStream = (function(){
             }
             case "right":
             {
-                this.ctx.fillText(this.text,format.xAlign+(format.length+2)*format.width-(this.text.length*this.charWidth()),format.yAlign+line*format.height);
+                this.ctx.fillText(this.text,format.xAlign+format.length*format.width-(this.text.length*this.charWidth()),format.yAlign+line*format.height);
                 break;
             }
             case "center":
             {
-                this.ctx.fillText(this.text,format.xAlign+(this.author.length+2 +this.width/2)*format.width-this.text.length*(this.charWidth()/2),format.yAlign+line*format.height);
+                this.ctx.fillText(this.text,format.xAlign+(this.author.length+2 +this.width()/2)*format.width-this.text.length*(this.charWidth()/2),format.yAlign+line*format.height);
             }
 
         }
         
     };
+    TextStream.prototype.width = function ()
+    {
+        return format.length-this.author.length-2;
+    }
     
     return TextStream;
 }())

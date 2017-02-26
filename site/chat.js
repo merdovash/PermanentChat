@@ -111,7 +111,6 @@ var initChat = function(){
                 {
                     if (ctrl)
                     {
-                        
                         var command = getCommand(container.empty.text);
                         if (command) 
                         {
@@ -177,13 +176,17 @@ function getCommand(text)
     {
         if (tree[0]=='-set')
         {
-            if (tree[1] && tree[1]=="color" && tree.length==3)
+            if (tree[1])
+            if ((tree[1]=="color" || tree[1]=="bgcolor") && tree.length==3)
             {
-                if (tree[2]) {
-                    var regex = new RegExp('#[0-f]{6}','i');
-                    if (regex.exec(tree[2])) return {type:"set",name:username,value:{color:tree[2]}}
+                if (tree[2] && isColor(tree[2])) 
+                {
+                    temp = {type:"set",name:username}
+                    temp.value={};
+                    temp.value[tree[1]]=tree[2];
+                    return temp;
                 }
-            }else if (tree[1] && tree[1]=="size")
+            }else if (tree[1]=="size")
             {
                 if (tree[2])
                 {
@@ -191,6 +194,12 @@ function getCommand(text)
                     var regex = new RegExp('[0-9]{1,2}');
                     if (regex.exec(tree[2]) && tree[2]<20 && tree[2]>10) return {type:"set",name:username,value:{size:tree[2]}}
                 }
+            }else if (tree[1]=="name")
+            {
+                
+                username=tree[2];
+                container.self.author=username;
+                updateFrame();
             }
         }else if (!state.login && tree[0]=='-login' && tree.length==2)
         {
@@ -202,6 +211,12 @@ function getCommand(text)
             }
         }
     }
+}
+
+function isColor(text)
+{
+    var regex = new RegExp('#[0-f]{6}','i');
+    return regex.exec(text);
 }
 
 var state={login:false};
@@ -223,8 +238,8 @@ function initControlPanel2()
     //fill panel
     panel2 = new ControlPanel([
         new Button({
-            x:10,
-            y:10,
+            x:chatCanvas.width-50,
+            y:chatCanvas.height-50,
             width:50,
             height:50,
             name:"language",
@@ -241,11 +256,11 @@ function initControlPanel2()
             text : language
         }),
         new Button({
-            x:chatCanvas.width-36,
-            y:50,
+            x:format.xAlign+format.width*format.length,
+            y:format.yAlign+5,
             width:30,
             height:30,
-            name: "downBtn",
+            name: "upBtn",
             action : function()
             {
                 container.moveUp();
@@ -257,11 +272,11 @@ function initControlPanel2()
             }
         }),
         new Button({
-            x:chatCanvas.width-36,
-            y:chatCanvas.height-50,
+            x:format.xAlign+format.width*format.length,
+            y:format.yAlign+format.height*format.max-25,
             width:30,
             height:30,
-            name: "upBtn",
+            name: "downBtn",
             action : function()
             {
                 container.moveDown();
@@ -295,6 +310,29 @@ function initControlPanel2()
     
 }
 
+var align ={
+    type:["left","right","center"],
+    i:0,
+    next : function()
+    {
+        var i=align.i+1;
+        if (i>=align.type.length)
+        {
+            i=0;
+        };
+        return i;
+    },
+    nextI: function()
+    {
+        align.i+=1;
+        if (align.i>=align.type.length)
+        {
+            align.i=0;
+        };
+        return align.i;
+    }
+}
+
 function dialogHandler(e)
 {
     var createDialog = container.contains(e);
@@ -311,11 +349,11 @@ function dialogHandler(e)
                 {
                     name:"nothing",
                     text:{
-                        buttonName:container.self.params.textAlign
+                        buttonName:align.type[align.next()]
                     },
                     action: function()
                     {
-                        var next = container.self.params.textAlign!="left"?container.self.params.textAlign!="right"?"left":"center":"right";
+                        var next= align.type[align.nextI()];
                         sendMsg({type:"set",name:username,value:{textAlign:next}});
                     }
                 }
@@ -340,7 +378,7 @@ function dialogHandler(e)
                     },
                     action: function()
                     {
-                        
+                        container.listenTo(createDialog.name);
                     }
                 } 
             ],
