@@ -1,12 +1,45 @@
 <!DOCTYPE HTML>
 <head>
     <script src="core.js"></script>
+    <style type="text/css">
+    .display{
+        width: 90px;         
+    }
+    .canv
+    {
+        top:50px;
+        left:5px;
+    }
+    .rule
+    {
+        margin-right:5px;
+        width: 300px;
+    }
+    .ruleText{
+        font-size: 18;
+        color:black;
+    }
+    </style>
 </head>
 <body>
-    <div id="params">
-        <input type="text" id="size" onsubmit="createGame()">
+    <div class="params">
+        <input type="text" placeholder="username" id="username">
+        <input type="text" placeholder="lobby name"  id="gamename">
+        <input type="range" min=3 max=13 step=1 value ="3" id="size" onchange="document.getElementById('showsize').value='game size: ' + document.getElementById('size').value;">
+        <input type="text" class="display" disabled id="showsize" value="game size: 3">
         <input type="button" value="go" onclick="createGame()">
     </div>
-    <canvas width="1000" height="800" id="game">
+    
+    <canvas width="1200" height="700" id="game" class="canv">
+    </canvas>
+    <div class="rule">
+        <p class="ruleText">Стратегическая игра основанная на поочередном занятии ячеек. Цель игры соеденить две стороны своего цвета
+             (Зеленую сторону - с зеленой, красную - с красной). Белые ячейки являются общими. Черные занять никто не может.
+             В левом верхнем углу указан цвет игрока, который сейчас ходит.
+             </p>
+        
+    </div>
+
+    
 </body>
 </html>

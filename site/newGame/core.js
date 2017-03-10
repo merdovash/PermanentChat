@@ -1,16 +1,26 @@
 var ctx;
 
+function sliderchage()
+{
+    window.getElementById("showsize").value=window.getElementById("size")
+}
 
+var width=0;
+var height=0;
 window.onload = function(){
     var canvas = document.getElementById("game");
+    width=canvas.width;
+    height=canvas.height;
 
     ctx = canvas.getContext("2d");
+    ctx.fillStyle="#cccccc";
+    ctx.fillRect(0,0,width,height);
 
     initWebSocket();
 
     canvas.addEventListener("mousedown",function(e){
-  //      if (turn)
-  //      {
+        if (isTurn())
+        {
             if (gameIsOn())
             {
                 game.start=true;
@@ -30,7 +40,7 @@ window.onload = function(){
                 }
             }
             
-     //   }
+        }
     },true);
 
     canvas.addEventListener("mousemove",function(e)
@@ -67,6 +77,12 @@ window.onload = function(){
     
 }
 
+function isTurn()
+{
+    return true;
+    //return (username==game.currentTurn)
+}
+
 function gameIsOn()
 {
     return game.create;
@@ -84,7 +100,7 @@ function createGame()
     if (!game.create || game.finished)
     {
         size = parseInt(document.getElementById("size").value);
-        if (size<12 && size>=3)
+        if (size<14 && size>2)
         {
             game.create=true;
             game.finished=false;
@@ -173,9 +189,9 @@ function initPlace(ctx)
         {
             c=Math.random();
             type=0;
-            if (c<0.05) type=4;
-            else if (c<0.1) type=5;
-            field[i][j]=new Place({x:30+(i+j)*45, y:300+j*26-i*26,ctx,type:type});
+            if (c<0.03) type=4;
+            else if (c<0.06) type=5;
+            field[i][j]=new Place({x:width/2+(i+j-size+1)*45, y:height/2+j*26-i*26,ctx,type:type});
         }
     }
     pathFinder = new PathFinder();
@@ -204,16 +220,13 @@ function drawCurrentSide()
 function drawBackGround()
 {
     ctx.fillStyle = "green";
-    ctx.fillRect(0,0,size*45-15,300);
+    ctx.fillRect(0,0,width,height);
 
     ctx.fillStyle = "red";
-    ctx.fillRect(0,300,size*45-15,300);
-
-    ctx.fillStyle = "green";
-    ctx.fillRect(size*45-15,300,size*45,300);
+    ctx.fillRect(0,height/2,width/2,height/2);
 
     ctx.fillStyle = "red";
-    ctx.fillRect(size*45-15,0,size*45,300);
+    ctx.fillRect(width/2,0,width/2,height/2);
 }
 
 function checkWin()
@@ -272,7 +285,7 @@ var Place = (function()
         this.x=params.x;
         this.y=params.y;
         this.ctx = params.ctx;
-        this.color="#101010"
+        this.color="#606060"
         this.side=params.side;
         this.owner=0;
         this.type=params.type;
@@ -295,7 +308,7 @@ var Place = (function()
             }
             
         }else{
-            this.ctx.fillStyle="#d0d000";
+            this.ctx.fillStyle="#000000";
         }
     };
 
@@ -366,6 +379,14 @@ var Place = (function()
             
             this.owner=side;
             return true;
+        }else if (this.type==4){
+            if (side==1)
+            {
+                this.color="#30ff80";
+            }else{
+                this.color="#ff3080";
+            }
+            this.owner=side;
         }
         return false;
         
