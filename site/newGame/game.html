@@ -23,11 +23,12 @@
 </head>
 <body>
     <div class="params">
+        <input type="button" value="wait" onclick="waitGame();">
         <input type="text" placeholder="username" id="username">
-        <input type="text" placeholder="lobby name"  id="gamename">
-        <input type="range" min=3 max=13 step=1 value ="3" id="size" onchange="document.getElementById('showsize').value='game size: ' + document.getElementById('size').value;">
+        <input type="text" placeholder="lobby name"  id="lobbyName">
+        <input type="range" min=3 max=30 step=1 value ="3" id="size" onchange="document.getElementById('showsize').value='game size: ' + document.getElementById('size').value;">
         <input type="text" class="display" disabled id="showsize" value="game size: 3">
-        <input type="button" value="go" onclick="createGame()">
+        <input type="button" value="go" onclick="userRequestNewGame(document.getElementById('size').value)">
     </div>
     
     <canvas width="1200" height="700" id="game" class="canv">

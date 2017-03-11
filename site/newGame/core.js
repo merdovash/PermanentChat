@@ -7,10 +7,29 @@ function sliderchage()
 
 var width=0;
 var height=0;
+
+var canvasOffset={
+    x:0,
+    y:0
+};
+
+function mousePosition(e)
+{
+    return {
+       x : e.pageX - canvasOffset.x,
+       y : e.pageY - canvasOffset.y
+   };
+}
+
 window.onload = function(){
     var canvas = document.getElementById("game");
     width=canvas.width;
     height=canvas.height;
+
+    canvasOffset={
+        x:canvas.offsetLeft,
+        y:canvas.offsetTop
+    }
 
     ctx = canvas.getContext("2d");
     ctx.fillStyle="#cccccc";
@@ -28,7 +47,7 @@ window.onload = function(){
                 {
                     for (j=0;j<size;j++)
                     {
-                        if (field[i][j].intersect(e))
+                        if (field[i][j].intersect(mousePosition(e)))
                         {
                             if (field[i][j].owner==0)
                             {
@@ -53,7 +72,7 @@ window.onload = function(){
             {
                 for (j=0;j<size;j++)
                 {
-                    if (field[i][j].intersect(e))
+                    if (field[i][j].intersect(mousePosition(e)))
                     {
                         
                         if (!field[i][j].over)
@@ -79,8 +98,7 @@ window.onload = function(){
 
 function isTurn()
 {
-    return true;
-    //return (username==game.currentTurn)
+    return (turn?1:2)==yourSide;
 }
 
 function gameIsOn()
@@ -95,39 +113,129 @@ var game={
     opponent:"",
     turn:1,
 }
-function createGame()
+
+var turn=true;
+
+var isWaitGame=false;
+
+lobbyName="";
+function waitGame()
+{
+    turn=false;
+    isWaitGame=true;
+    lobbyName=document.getElementById("lobbyName").value;
+    yourSide=2;
+}
+
+function userRequestNewGame(size)
 {
     if (!game.create || game.finished)
     {
-        size = parseInt(document.getElementById("size").value);
-        if (size<14 && size>2)
-        {
-            game.create=true;
-            game.finished=false;
-            
-            initPlace(ctx);
-            updateFrame();
-        }else{
-            alert("size is unsupported")
-        }
-
+        createGame(size);
     }
     
 };
+
+function createGame(gameSize)
+{
+    
+    turn=true;
+    
+    lobbyName=document.getElementById("lobbyName").value;
+    size = parseInt(gameSize);
+    hexoidResize(size);
+    game.create=true;
+    game.finished=false;
+    
+    initPlace(ctx);
+    updateFrame();
+
+    if (!isWaitGame) sendMap();
+};
+
+function sendMap()
+{
+    yourSide=1;
+    msg = {
+        type:"map",
+        lobbyName:lobbyName,
+        size:field.length,
+        value:field.map(x=>x.map(y=>y.type))
+    }
+    socket.send(JSON.stringify(msg));
+}
+
+var hexoid={
+    width:20,
+};
+
+hexoid.height=hexoid.width*13/15;
+
+function hexoidResize(value)
+{
+    hexoid.height=(height-10)/value/2;
+    hexoid.width=hexoid.height*15/13;
+
+    globalParams={
+    0:{
+        x:-hexoid.width,
+        y:0,
+    },
+    1:{
+        x:-hexoid.width/2,
+        y:hexoid.height
+    },
+    2:{
+        x:hexoid.width/2,
+        y:hexoid.height
+    },
+    3:{
+        x:hexoid.width,
+        y:0
+    },
+    4:{
+        x:hexoid.width/2,
+        y:-hexoid.height
+    },
+    5:{
+        x:-hexoid.width/2,
+        y:-hexoid.height
+    }
+};
+}
 
 var socket;
 var name="111";
 
 function sendData(i,j)
 {
-    socket.send(JSON.stringify({game:name,x:i,y:j}));
+    socket.send(JSON.stringify({type:"step",lobbyName:lobbyName,x:i,y:j,side:turn?1:2}));
 }
 
+
+var lastStepPointer;
 function readMsg(msg)
 {
-    if (msg.game==name)
+    if (msg.type && msg.type=="map" && isWaitGame && lobbyName==msg.lobbyName)
     {
-        field[msg.x][msg.y].select(turn?1:2);
+        size=msg.size;
+        createGame(msg.size);
+
+        for (i=0;i<size;i++)
+        {
+            for (j=0;j<size;j++)
+            {
+                field[i][j].type=msg.value[i][j];
+            }
+        }
+        isWaitGame=false;
+    }else if (msg.type=="step" && msg.lobbyName==lobbyName)
+    {
+        field[msg.x][msg.y].select(msg.side);
+        if (lastStepPointer)  lastStepPointer.lastStep=false;
+        lastStepPointer=field[msg.x][msg.y];
+        lastStepPointer.lastStep=true;
+
         if (turn)
         {
             turn=false;
@@ -182,20 +290,48 @@ var turn=true;
 
 function initPlace(ctx)
 {
-    for (i=0;i<size;i++)
+    field=[];
+    for (var i=0;i<size;i++)
     {
         field[i]=[];
-        for (j=0;j<size;j++)
+        for (var j=0;j<size;j++)
         {
-            c=Math.random();
-            type=0;
-            if (c<0.03) type=4;
-            else if (c<0.06) type=5;
-            field[i][j]=new Place({x:width/2+(i+j-size+1)*45, y:height/2+j*26-i*26,ctx,type:type});
+            type=getTypeOfPlace(i,j);
+            field[i][j]=new Place({x:width/2+(i+j-size+1)*(1.5*hexoid.width), y:height/2+(j-i)*(hexoid.height),ctx,type:type});
         }
     }
     pathFinder = new PathFinder();
     field.forEach(x=>x.forEach(y=>y.draw()));
+}
+
+function getTypeOfPlace(x,y)
+{
+    var type=0;
+
+    r=Math.sqrt(Math.random()*Math.random());
+    if (r<0.03 && haveNoOther(4,x,y,2)) type=4;
+    else if (r<0.06 && haveNoOther(5,x,y,1)) type=5;
+
+    return type;
+}
+
+function haveNoOther(type,x,y,radius)
+{
+    for (var i=-radius;i<=radius;i++)
+    {
+        for (var j=-radius;j<=radius;j++)
+        {
+            rx=x+i;
+            ry=y+j;
+            if (rx>=0 && ry>=0 && rx<size && ry<size && field.length>rx && field[rx].length>ry)
+            {
+                //alert(rx+" "+ry+" "+field.length+" "+ field[rx].length);
+                if (field[x+i][y+j].type==type) return false;
+            }
+            
+        }
+    }
+    return true;
 }
 
 function updateFrame()
@@ -219,13 +355,13 @@ function drawCurrentSide()
 
 function drawBackGround()
 {
-    ctx.fillStyle = "green";
+    ctx.fillStyle = "#204520";
     ctx.fillRect(0,0,width,height);
 
-    ctx.fillStyle = "red";
+    ctx.fillStyle = "#d02020";
     ctx.fillRect(0,height/2,width/2,height/2);
 
-    ctx.fillStyle = "red";
+    ctx.fillStyle = "#d02020";
     ctx.fillRect(width/2,0,width/2,height/2);
 }
 
@@ -238,6 +374,7 @@ function checkWin()
     {
         alert("1 win");
         game.finished=true;
+        createGame(Math.round(Math.random()*27+3))
     }
     pathFinder.findWay(2);
     if (pathFinder.complete==2)
@@ -251,30 +388,31 @@ function checkWin()
 
 
 
+
 var globalParams={
     0:{
-        x:-30,
+        x:-hexoid.width,
         y:0,
     },
     1:{
-        x:-15,
-        y:26
+        x:-hexoid.width/2,
+        y:hexoid.height
     },
     2:{
-        x:15,
-        y:26
+        x:hexoid.width/2,
+        y:hexoid.height
     },
     3:{
-        x:30,
+        x:hexoid.width,
         y:0
     },
     4:{
-        x:15,
-        y:-26
+        x:hexoid.width/2,
+        y:-hexoid.height
     },
     5:{
-        x:-15,
-        y:-26
+        x:-hexoid.width/2,
+        y:-hexoid.height
     }
 };
 
@@ -289,6 +427,7 @@ var Place = (function()
         this.side=params.side;
         this.owner=0;
         this.type=params.type;
+        this.lastStep=false;
     }
 
     Place.prototype.setColor =function()
@@ -297,7 +436,7 @@ var Place = (function()
         {
             switch (this.type)
             {
-                default:{
+                default:{           
                     this.ctx.fillStyle=this.color;
                     break;
                 };
@@ -343,6 +482,19 @@ var Place = (function()
         }
         else this.draw6();
         
+        if (this.lastStep)
+        {
+            if (this.owner==1)
+            {
+                this.ctx.fillStyle = "rgba(30,255,30,0.25)"
+            }else 
+            {
+                this.ctx.fillStyle = "rgba(255,30,30,0.4)"
+            }
+            
+            this.draw6();
+        }
+
         if (this.over)
         {
             this.ctx.fillStyle = "rgba(0,0,0,0.4)"
@@ -363,7 +515,7 @@ var Place = (function()
 
     Place.prototype.intersect = function(e)
     {
-        return (this.type==0  && (Math.pow(e.layerX-this.x,2)+Math.pow(e.layerY-this.y,2))<Math.pow(26,2)  )
+        return (this.type==0  && (Math.pow(e.x-this.x,2)+Math.pow(e.y-this.y,2))<Math.pow(hexoid.height,2)  )
     };
 
     Place.prototype.select = function(side)
@@ -372,9 +524,9 @@ var Place = (function()
         {
             if (side==1)
             {
-                this.color="#30ff30";
+                this.color="#204520";
             }else{
-                this.color="#ff3030";
+                this.color="#dd2020";
             }
             
             this.owner=side;
@@ -382,9 +534,9 @@ var Place = (function()
         }else if (this.type==4){
             if (side==1)
             {
-                this.color="#30ff80";
+                this.color="#30dd80";
             }else{
-                this.color="#ff3080";
+                this.color="#dd3080";
             }
             this.owner=side;
         }
