@@ -29,6 +29,12 @@
         <input type="range" min=3 max=30 step=1 value ="3" id="size" onchange="document.getElementById('showsize').value='game size: ' + document.getElementById('size').value;">
         <input type="text" class="display" disabled id="showsize" value="game size: 3">
         <input type="button" value="go" onclick="userRequestNewGame(document.getElementById('size').value)">
+        <input type="button" value="offline" onclick="offlineGame()">
+        </br>
+        <input type="checkbox" id="stone">
+        <input type="checkbox" id="portal">
+        <input type="checkbox" id="bomb">
+        <input type="checkbox" id="randomn">
     </div>
     
     <canvas width="1200" height="700" id="game" class="canv">

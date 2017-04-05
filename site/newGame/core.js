@@ -38,7 +38,7 @@ window.onload = function(){
     initWebSocket();
 
     canvas.addEventListener("mousedown",function(e){
-        if (isTurn())
+        if (!online || isTurn())
         {
             if (gameIsOn())
             {
@@ -51,7 +51,15 @@ window.onload = function(){
                         {
                             if (field[i][j].owner==0)
                             {
-                                sendData(i,j);
+                                if (online)
+                                {
+                                    sendData(i,j);
+                                }
+                                else
+                                {
+                                    step(i,j,turn?1:2)
+                                }
+                                
                             }
                             return;
                         }
@@ -136,22 +144,37 @@ function userRequestNewGame(size)
     
 };
 
+
+var online;
+function offlineGame()
+{
+    online=false;
+    turn=true;
+    newGame();
+}
+
 function createGame(gameSize)
 {
-    
+    if (online==undefined) online=true;
     turn=true;
     
     lobbyName=document.getElementById("lobbyName").value;
-    size = parseInt(gameSize);
+    newGame();
+
+    if (!isWaitGame) sendMap();
+};
+
+function newGame()
+{
+    size = parseInt(document.getElementById('size').value);
     hexoidResize(size);
     game.create=true;
     game.finished=false;
     
     initPlace(ctx);
-    updateFrame();
-
-    if (!isWaitGame) sendMap();
-};
+    updateFrame();  
+    points={1:0,2:0};
+}
 
 function sendMap()
 {
@@ -231,17 +254,7 @@ function readMsg(msg)
         isWaitGame=false;
     }else if (msg.type=="step" && msg.lobbyName==lobbyName)
     {
-        field[msg.x][msg.y].select(msg.side);
-        if (lastStepPointer)  lastStepPointer.lastStep=false;
-        lastStepPointer=field[msg.x][msg.y];
-        lastStepPointer.lastStep=true;
-
-        if (turn)
-        {
-            turn=false;
-        }else{
-            turn=true;
-        }
+        step(msg.x,msg.y,msg.side);
     }
     checkWin();
     updateFrame();
@@ -288,57 +301,75 @@ var pathFinder;
 
 var turn=true;
 
+var pointCounter;
+
 function initPlace(ctx)
 {
     field=[];
+    map = createMap(size);
     for (var i=0;i<size;i++)
     {
         field[i]=[];
         for (var j=0;j<size;j++)
         {
-            type=getTypeOfPlace(i,j);
-            field[i][j]=new Place({x:width/2+(i+j-size+1)*(1.5*hexoid.width), y:height/2+(j-i)*(hexoid.height),ctx,type:type});
+            field[i][j]=new Place({x:width/2+(i+j-size+1)*(1.5*hexoid.width), y:height/2+(j-i)*(hexoid.height),ctx,type:map[i][j]});
         }
     }
     pathFinder = new PathFinder();
+    pointCounter=new PointCounter(field)
     field.forEach(x=>x.forEach(y=>y.draw()));
 }
 
-function getTypeOfPlace(x,y)
+function createEmptyMap(size)
 {
-    var type=0;
-
-    r=Math.sqrt(Math.random()*Math.random());
-    if (r<0.03 && haveNoOther(4,x,y,2)) type=4;
-    else if (r<0.06 && haveNoOther(5,x,y,1)) type=5;
-
-    return type;
-}
-
-function haveNoOther(type,x,y,radius)
-{
-    for (var i=-radius;i<=radius;i++)
+    var map=[];
+    for (var i=0;i<size;i++)
     {
-        for (var j=-radius;j<=radius;j++)
+        map[i]=[];
+        for (var j=0;j<size;j++)
         {
-            rx=x+i;
-            ry=y+j;
-            if (rx>=0 && ry>=0 && rx<size && ry<size && field.length>rx && field[rx].length>ry)
-            {
-                //alert(rx+" "+ry+" "+field.length+" "+ field[rx].length);
-                if (field[x+i][y+j].type==type) return false;
-            }
-            
+            map[i][j]=0;
         }
     }
-    return true;
+    return map;
+}
+
+var k=5
+
+
+function createMap(size)
+{
+    chaoses=[];
+
+    
+
+    var map = createEmptyMap(size);
+    var placers =[];
+    alert(document.getElementById('bomb').value);
+
+    if (document.getElementById('bomb').checked) 
+    {
+        bombs = new BombHandler(field);
+        placers.push(new BombPlacer(map));
+    }
+    if (document.getElementById('randomn').checked) placers.push(new ChaosPlacer(map));
+    if (document.getElementById('stone').checked) placers.push(new StonePlacer(map));
+    if (document.getElementById('portal').checked) placers.push(new PortalPlacer(map));
+
+    for (i in placers)
+    {
+        placers[i].place();
+    }
+    return map;
 }
 
 function updateFrame()
 {
     drawBackGround();
 
-    drawCurrentSide();    
+    drawCurrentSide();  
+
+    drawPoints();  
 
     field.forEach(x=>x.forEach(y=>y.draw()));
     
@@ -349,13 +380,13 @@ function drawCurrentSide()
     ctx.fillStyle="black";
     ctx.fillRect(15,15,50,50);
 
-    ctx.fillStyle = (turn==1?"green":"red");
+    ctx.fillStyle = (turn==1?"blue":"red");
     ctx.fillRect(20,20,40,40);
 }
 
 function drawBackGround()
 {
-    ctx.fillStyle = "#204520";
+    ctx.fillStyle = "#5050a0";
     ctx.fillRect(0,0,width,height);
 
     ctx.fillStyle = "#d02020";
@@ -363,6 +394,241 @@ function drawBackGround()
 
     ctx.fillStyle = "#d02020";
     ctx.fillRect(width/2,0,width/2,height/2);
+}
+
+function drawPoints()
+{
+    ctx.fillStyle = "#ffffff";
+    ctx.font= "30px Arial";
+    ctx.fillText(points[1],50,150);
+    ctx.fillText(points[2],width-150,150);
+}
+
+
+var bombs;
+function step(i,j,side)
+{
+    field[i][j].select(side);
+    if (lastStepPointer)  lastStepPointer.lastStep=false;
+    lastStepPointer=field[i][j];
+    lastStepPointer.lastStep=true;
+
+    if (turn)
+    {
+        turn=false;
+    }else{
+        turn=true;
+    }
+    var newPoints = checkChaos(i,j);
+    i=newPoints.x;
+    j=newPoints.y;
+    if (bombs) bombs.update(side);
+    checkWin();
+    points[side]+=pointCounter.count(newPoints.x,newPoints.y,side);
+    updateFrame();
+    
+}
+
+var points={
+    1:0,
+    2:0
+}
+
+var PointCounter = (function()
+{
+    function PointCounter(field)
+    {
+        this.field = field
+    }
+
+    PointCounter.prototype.count = function(x,y,type)
+    {
+        this.path = [];
+        this.counted=[];
+        this.map = this.field.map(x=>x.map(y=>y.type));
+        this.c=1;
+        this.type=type;
+        this.path.push({x:x,y:y});
+        this.counted.push({x:x,y:y});
+        this.next(x,y);
+        return this.c;
+    }
+
+    PointCounter.prototype.next = function(x,y)
+    {
+        for (m in move)
+        {
+            nextX = move[m].x+x;
+            nextY = move[m].y+y;
+            if (nextX>=0 && nextX<this.field.length && nextY>=0 &&  nextY<this.field.length)
+            {
+                if (this.path.find(x=>(x.x==nextX && x.y==nextY)) || this.counted.find(x=>(x.x==nextX &&x.y==nextY)))
+                {
+                   
+                }
+                else{
+                    if (this.map[nextX][nextY]==this.type || this.map[nextX][nextY]==5)
+                    {
+                        this.path.push({x:nextX,y:nextY});
+                        this.counted.push({x:nextX,y:nextY})
+                        this.next(nextX,nextY);
+                        this.c+=1;
+                    }
+                }
+            }
+        }
+        this.path.pop();
+    }
+
+    return PointCounter;
+}());
+
+
+
+var chaoses;
+
+function checkChaos(x,y)
+{
+    chaoses=find(field,7)
+    var radius=1;
+    for (c in chaoses)
+    {
+        for (var i=-radius;i<=radius;i++)
+        {
+            for (var j=-radius;j<=radius;j++)
+            {
+                if (i*j<radius && !(i==0 && j==0))
+                {
+                    if (x==chaoses[c].x+i && y==chaoses[c].y+j)
+                    {
+                        return activateChaos(c,x,y);
+                    }
+                }
+            }
+        }
+    }
+    return {x:x,y:y};
+}
+
+function checkOwnerOfChaos(c,arr)
+{
+    var first=0;
+    var second=0;
+    for (var i=0;i<arr.length;i++)
+    {
+        if (arr[i]==1 || arr[i]==5)
+        {
+            first++;
+        }
+        if (arr[i]==2 || arr[i]==5)
+        {
+            second++;
+        }
+        if (first==4 && second!=4) field[chaoses[c].x][chaoses[c].y].type=1;
+        else if (first!=4 && second==4) field[chaoses[c].x][chaoses[c].y].type=2;
+    }
+}
+
+var clock=[2,3,4,5,6,1]
+
+function activateChaos(с,x,y)
+{
+    var arr=[];
+    var radius=1;
+    var returnPointer=0;
+    for (var m in move)
+    {
+        rx=move[m].x+chaoses[c].x;
+        ry=move[m].y+chaoses[c].y;
+        arr.push(field[rx][ry].type)
+        if (x==rx && y==ry){
+            returnPointer=arr.length;
+        }
+            
+    }
+    //checkOwnerOfChaos(c,arr);
+    var k=0;
+    
+    for (var i=0;i<6;i++)
+    {
+        rx=move[clock[i]].x+chaoses[c].x;
+        ry=move[clock[i]].y+chaoses[c].y;
+        field[rx][ry].type=arr[k]
+        k++;
+        if (returnPointer==k) returnPointer={x:rx,y:ry}; 
+    }
+
+    return returnPointer;
+}
+
+function randomSort(arr)
+{
+    var newArr=new Array();
+    for (var i =0;i<6;i++)
+    {
+        c=Math.round(Math.random()*(6-i));
+        newArr.push(arr[c]);
+        arr=remove(arr,c);
+    }
+    return newArr;
+}
+
+function clockSort(arr)
+{
+    var temp=arr[5];
+    var temp2;
+    for (var i=0;i<6;i++)
+    {
+        if (i==0){
+            temp=arr[i];
+            arr[i]=arr[5];
+        }else{
+            temp2=arr[i];
+            arr[i]=temp;
+            temp=temp2;
+        }
+    }
+}
+
+function find(field,type)
+{
+    var arr = new Array();
+    for (var i=0;i<field.length;i++)
+    {
+        for (var j=0;j<field[i].length;j++)
+        {
+            if (field[i][j].type==type)
+            {
+                arr.push({x:i,y:j});
+            }
+        }
+    }
+    return arr;
+}
+
+function remove(arr, index){
+    var newArr=new Array();
+    for (var i=0;i<arr.length;i++)
+    {
+        if (i!=index){
+            newArr.push(arr[i]);
+        }
+    }
+    return newArr;
+}
+
+function hexRadiusAction(radius,x,y,action)
+{
+    for (i=-radius;i<=radius;i++)
+    {
+        for (j=-radius;j<=radius;j++)
+        {
+            if (i*j<radius)
+            {
+                action(x+i,y+j)
+            }
+        }
+    }
 }
 
 function checkWin()
@@ -381,13 +647,10 @@ function checkWin()
     {
         alert("2 win");
         game.finished=true;
+        createGame(Math.round(Math.random()*27+3))
     } 
 
 }
-
-
-
-
 
 var globalParams={
     0:{
@@ -415,6 +678,279 @@ var globalParams={
         y:-hexoid.height
     }
 };
+
+var BombHandler = (function()
+{
+    function BombHandler(field)
+    {
+        this.field = field;
+        this.explodeRadius=2;
+        this.stepRadius=1;
+    }
+
+    BombHandler.prototype.update = function(side)
+    {
+        var bombs=find(this.field,6)
+        for (bomb in bombs)
+        {
+            for (i=-this.stepRadius;i<=this.stepRadius;i++)
+            {
+                for (j=-this.stepRadius;j<=this.stepRadius;j++)
+                {
+                    if (i*j<this.stepRadius)
+                    {
+                        if (this.field[bombs[bomb].x+i][bombs[bomb].y+j].type==1 
+                        || this.field[bombs[bomb].x+i][bombs[bomb].y+j].type==2)
+                        {
+                            this.explode(bombs,bomb,side)
+                            return this.field;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    BombHandler.prototype.explode = function(bombs,bomb,side)
+    {
+        
+        for (i=-this.explodeRadius;i<=this.explodeRadius;i++)
+        {
+            for (j=-this.explodeRadius;j<=this.explodeRadius;j++)
+            {
+                if (i*j<this.explodeRadius)
+                {
+                    var x=bombs[bomb].x+i;
+                    var y=bombs[bomb].y+j;
+                    if (x>=0 && x<size && y>=0 && y<size)
+                    {
+                        if (this.field[x][y].type==1 || this.field[x][y].type==2) 
+                        {
+                            points[side]+=1;
+                        }
+                        this.field[x][y].type=0;
+                        this.field[x][y].owner=0;
+                    }
+                }
+            }
+        }
+        this.field[bombs[bomb].x][bombs[bomb].y].type=5;
+        bombs = remove(bombs,bomb);    
+    };
+
+    return BombHandler;
+}())
+
+var ChaosPlacer = (function()
+{
+    function ChaosPlacer(map)
+    {
+        this.map=map;
+        this.count=Math.round(map.length**2/80);
+        this.radius=1;
+    }
+
+    ChaosPlacer.prototype.place = function()
+    {
+        var i=0;
+        var stop=0;
+        while(i<this.count && stop<5)
+        {
+            var x=Math.round(Math.random()*this.map.length);
+            var y=Math.round(Math.random()*this.map.length);
+            if (this.isAbleToPlace(x,y))
+            {
+                this.map[x][y]=7;
+                i++;
+                stop=0;
+                chaoses.push({x:x,y:y});
+            }else{
+                stop++;
+            }
+        }
+    }
+
+    ChaosPlacer.prototype.isAbleToPlace = function(x,y)
+    {
+        for (i=-this.radius;i<=this.radius;i++)
+        {
+            for (j=-this.radius;j<=this.radius;j++)
+            {
+                if (i*j<this.radius)
+                {
+                    if (x<=1|| x>=this.map.length-2 || y<=1 || y>=this.map.length-2 || 
+                    (x+i>0 && x+i<this.map.length && y+j>0&& y+j<this.map.length && this.map[x+i][y+j]==7)) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    return ChaosPlacer;
+}());
+
+
+var PortalPlacer = (function()
+{
+    function PortalPlacer(map)
+    {
+        this.map=map;
+        this.count=Math.round(map.length**2/20);
+        this.radius=3;
+    }
+
+    PortalPlacer.prototype.place = function()
+    {
+        var i=0;
+        var stop=0;
+        while(i<this.count && stop<5)
+        {
+            var x=Math.round(Math.random()*this.map.length);
+            var y=Math.round(Math.random()*this.map.length);
+            if (this.isAbleToPlace(x,y))
+            {
+                this.map[x][y]=5;
+                i++;
+                stop=0;
+            }else{
+                stop++;
+            }
+        }
+    }
+
+    PortalPlacer.prototype.isAbleToPlace = function(x,y)
+    {
+        for (i=-this.radius;i<=this.radius;i++)
+        {
+            for (j=-this.radius;j<=this.radius;j++)
+            {
+                if (i*j<this.radius)
+                {
+                    if (x<=1|| x>=this.map.length-2 || y<=1 || y>=this.map.length-2 || 
+                    (x+i>0 && x+i<this.map.length && y+j>0&& y+j<this.map.length && this.map[x+i][y+j]==5)) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    return PortalPlacer;
+}())
+
+
+var StonePlacer = (function()
+{
+    function StonePlacer(map)
+    {
+        this.map=map;
+        this.count=Math.round(map.length**2/33);
+        this.radius=3;
+    }
+
+    StonePlacer.prototype.place = function()
+    {
+        var i=0;
+        var stop=0;
+        while(i<this.count&& stop<5)
+        {   
+            var x=Math.round(Math.random()*this.map.length);
+            var y=Math.round(Math.random()*this.map.length);
+            if (this.isAbleToPlace(x,y))
+            {
+                this.map[x][y]=4;
+                i++;
+                stop=0;
+            }else{
+                stop++;
+            }
+        }
+    }
+
+    StonePlacer.prototype.isAbleToPlace = function(x,y)
+    {
+        for (i=-this.radius;i<=this.radius;i++)
+        {
+            for (j=-this.radius;j<=this.radius;j++)
+            {
+                if (i*j<this.radius)
+                {
+                    if (x<=1|| x>=this.map.length-2 || y<=1 || y>=this.map.length-2 || 
+                    (x+i>0 && x+i<this.map.length && y+j>0&& y+j<this.map.length && this.map[x+i][y+j]==4)) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    return StonePlacer;
+}());
+
+var BombPlacer = (function()
+{
+    function BombPlacer(map)
+    {
+        this.map=map;
+        this.count=Math.round(map.length**2/160);
+        this.radius=4
+    }
+
+    BombPlacer.prototype.place = function()
+    {
+        var i=0;
+        var stop=0;
+        while(i<this.count && stop<5)
+        {
+            var x=Math.round(Math.random()*this.map.length);
+            var y=Math.round(Math.random()*this.map.length);
+            if (this.isAbleToPlace(x,y))
+            {
+                this.map[x][y]=6;
+                i++;
+                stop=0;
+            }else{
+                stop++;
+            }
+        }
+    };
+
+    BombPlacer.prototype.isAbleToPlace = function(x,y)
+    {
+        for (i=-this.radius;i<=this.radius;i++)
+        {
+            for (j=-this.radius;j<=this.radius;j++)
+            {
+                if (i*j<this.radius)
+                {
+                    if (x<=1|| x>=this.map.length-2 || y<=1 || y>=this.map.length-2 ||  
+                    (x+i>0 && x+i<this.map.length && y+j>0&& y+j<this.map.length && this.map[x+i][y+j]==6)) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    return BombPlacer;
+}())
+
+hex=
+{
+    0:new Image(),
+    1:new Image(),
+    2:new Image(),
+    3:new Image(),
+    4:new Image(),
+    5:new Image(),
+    6:new Image(),
+    7:new Image()
+}
+
+hex[0].src='std.png';
+hex[5].src='portal.png';
+hex[4].src='stone.png';
+hex[1].src='blue.png'
+hex[2].src='red.png';
+hex[6].src='bomb.png';
+hex[7].src='chaos.png';
 
 var Place = (function()
 {
@@ -453,6 +989,7 @@ var Place = (function()
 
     Place.prototype.draw6 = function()
     {
+        this.ctx.beginPath(); 
         var first=true;
 
         for(place in globalParams)
@@ -465,53 +1002,38 @@ var Place = (function()
                 this.ctx.lineTo(this.x+globalParams[place].x,this.y+globalParams[place].y);
             }
         }
-        this.ctx.closePath(); //заканчиваем рисовать многоугольник
+        this.ctx.closePath();
         this.ctx.fill();
-        this.ctx.stroke(); //выводим наши художества  
+        this.ctx.stroke();   
     };
+
+    Place.prototype.drawImg= function()
+    {
+        this.ctx.drawImage(hex[this.type],this.x-hexoid.width,this.y-hexoid.height,hexoid.width*2,hexoid.height*2);
+    }
 
     Place.prototype.draw = function()
     {
-        this.ctx.beginPath(); 
-        
-        
-        this.setColor();
-        if (this.type==3) {
-            this.draw1half();
-            this.draw2half();
-        }
-        else this.draw6();
+        this.drawImg();
         
         if (this.lastStep)
         {
             if (this.owner==1)
             {
-                this.ctx.fillStyle = "rgba(30,255,30,0.25)"
+                this.ctx.fillStyle = "rgba(50,50,200,0.4)"
             }else 
             {
-                this.ctx.fillStyle = "rgba(255,30,30,0.4)"
+                this.ctx.fillStyle = "rgba(200,100,50,0.4)"
             }
-            
             this.draw6();
         }
 
         if (this.over)
         {
-            this.ctx.fillStyle = "rgba(0,0,0,0.4)"
+            this.ctx.fillStyle = "rgba(100,100,100,0.4)"
             this.draw6();
         }
-        
     };
-
-    Place.prototype.applyOver = function(color)
-    {
-        if (this.over)
-        {
-            this.ctx.fillStyle=color;
-        }else{
-            this.ctx.fillStyle=color;
-        }
-    }
 
     Place.prototype.intersect = function(e)
     {
@@ -520,34 +1042,45 @@ var Place = (function()
 
     Place.prototype.select = function(side)
     {
-        if (this.owner==0)
+        if (this.type==0)
         {
-            if (side==1)
-            {
-                this.color="#204520";
-            }else{
-                this.color="#dd2020";
-            }
-            
-            this.owner=side;
+            this.type=side;
             return true;
-        }else if (this.type==4){
-            if (side==1)
-            {
-                this.color="#30dd80";
-            }else{
-                this.color="#dd3080";
-            }
-            this.owner=side;
         }
         return false;
-        
     };
-
     return Place;
 }());
 
 move={
+    1:{
+        x:1,
+        y:0
+    },
+    2:{
+        x:0,
+        y:1
+    },
+    3:{
+        x:-1,
+        y:1
+    },
+    4:{
+        x:-1,
+        y:0
+    },
+    5:{
+        x:0,
+        y:-1
+    },
+    6:{
+        x:1,
+        y:-1
+    }
+};
+
+var move2=
+{
     1:{
         x:1,
         y:0
@@ -571,6 +1104,54 @@ move={
     6:{
         x:1,
         y:-1
+    },
+    7:{
+        x:-2,
+        y:0
+    },
+    8:{
+        x:-1,
+        y:-1,
+    },
+    9:{
+        x:0,
+        y:-2
+    },
+    10:{
+        x:1,
+        y:-2
+    },
+    11:{
+        x:2,
+        y:-2
+    },
+    12:{
+        x:2,
+        y:-1
+    },
+    13:{
+        x:2,
+        y:0,
+    },
+    14:{
+        x:1,
+        y:1
+    },
+    15:{
+        x:0,
+        y:2
+    },
+    16:{
+        x:-1,
+        y:2
+    },
+    17:{
+        x:-2,
+        y:2,
+    },
+    18:{
+        x:-2,
+        y:1
     }
 };
 
@@ -611,12 +1192,10 @@ var PathFinder = (function()
                 break;
             }
         }
-        
     };
 
     PathFinder.prototype.goNext = function(x,y,team)
     {
-        
         c=(team==1?y:x);
         if (c==this.map.length-1 || 5==this.map.length-1) 
         {
